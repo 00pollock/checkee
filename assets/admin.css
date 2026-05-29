@@ -1,0 +1,448 @@
+/* ============================================================
+   Wand Admin — Clean SaaS UI
+   ============================================================ */
+
+:root {
+  --ck-primary:      #111827;
+  --ck-accent:       #059669;
+  --ck-accent-light: #ecfdf5;
+  --ck-green:        #059669;
+  --ck-green-light:  #d1fae5;
+  --ck-blue:         #2563eb;
+  --ck-blue-light:   #dbeafe;
+  --ck-red:          #dc2626;
+  --ck-red-light:    #fee2e2;
+  --ck-gray:         #6b7280;
+  --ck-gray-light:   #f9fafb;
+  --ck-border:       #e5e7eb;
+  --ck-shadow:       0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --ck-shadow-md:    0 4px 16px rgba(0,0,0,.07);
+  --ck-radius:       10px;
+  --ck-radius-sm:    6px;
+}
+
+/* ---- Override WP admin padding for full width ---- */
+#wpcontent,
+#wpbody { padding-left: 0 !important; }
+#wpbody-content { padding-bottom: 0 !important; padding-right: 0 !important; }
+.wrap { max-width: none !important; margin-left: 0 !important; margin-right: 0 !important; }
+
+.ck-wrap {
+  padding: 28px 32px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: #111827;
+  margin-left: -20px;
+  margin-right: -20px;
+  margin-top: -10px;
+  background: #f9fafb;
+  min-height: calc(100vh - 32px);
+}
+
+/* ============================================================
+   Page Header
+   ============================================================ */
+.ck-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+.ck-page-header__left h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ck-primary);
+  margin: 0 0 3px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  letter-spacing: -.3px;
+}
+.ck-page-header__left h1 .bi { font-size: 20px; color: var(--ck-accent); }
+.ck-page-header__left p {
+  font-size: 13.5px;
+  color: var(--ck-gray);
+  margin: 0;
+}
+.ck-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ck-gray);
+  text-decoration: none;
+  margin-bottom: 8px;
+}
+.ck-back-link:hover { color: var(--ck-accent); }
+.ck-header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* ============================================================
+   Cards
+   ============================================================ */
+.ck-card {
+  background: #fff;
+  border-radius: var(--ck-radius);
+  box-shadow: var(--ck-shadow);
+  border: 1px solid var(--ck-border);
+  padding: 24px;
+  margin-bottom: 20px;
+}
+.ck-card--flush { padding: 0; overflow: hidden; }
+.ck-card--info  { background: var(--ck-accent-light); border-color: #a7f3d0; }
+.ck-card--info h3 {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #065f46;
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ck-card__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ck-primary);
+  margin: 0 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--ck-border);
+}
+.ck-card__title .bi { color: var(--ck-accent); font-size: 15px; }
+.ck-card__desc {
+  font-size: 13px;
+  color: var(--ck-gray);
+  margin: -8px 0 16px;
+  line-height: 1.6;
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.ck-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border-radius: var(--ck-radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1.5px solid transparent;
+  transition: all .15s;
+  white-space: nowrap;
+  letter-spacing: -.1px;
+}
+.ck-btn:focus { outline: 2px solid var(--ck-accent); outline-offset: 2px; }
+.ck-btn-primary {
+  background: var(--ck-primary);
+  color: #fff;
+  border-color: var(--ck-primary);
+}
+.ck-btn-primary:hover { background: #1f2937; color: #fff; }
+.ck-btn-outline {
+  background: #fff;
+  color: var(--ck-primary);
+  border-color: var(--ck-border);
+}
+.ck-btn-outline:hover { border-color: #9ca3af; background: var(--ck-gray-light); color: var(--ck-primary); }
+.ck-btn-ghost {
+  background: transparent;
+  color: var(--ck-gray);
+  border-color: transparent;
+}
+.ck-btn-ghost:hover { background: var(--ck-gray-light); color: var(--ck-primary); }
+.ck-btn-sm { padding: 5px 11px; font-size: 12px; }
+.ck-btn-full { width: 100%; justify-content: center; display: flex; }
+
+.ck-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--ck-radius-sm);
+  background: transparent;
+  border: 1px solid var(--ck-border);
+  color: var(--ck-gray);
+  text-decoration: none;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all .15s;
+}
+.ck-icon-btn:hover { background: var(--ck-gray-light); color: var(--ck-primary); border-color: #9ca3af; }
+.ck-icon-btn--danger:hover { background: var(--ck-red-light); color: var(--ck-red); border-color: #fca5a5; }
+.ck-inline-form { display: inline; }
+.ck-action-group { display: flex; align-items: center; gap: 5px; justify-content: flex-end; }
+.ck-inline-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+
+/* ============================================================
+   Table
+   ============================================================ */
+.ck-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.ck-table thead th {
+  padding: 10px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  color: var(--ck-gray);
+  border-bottom: 1px solid var(--ck-border);
+  background: #fcfcfc;
+}
+.ck-table tbody tr {
+  border-bottom: 1px solid var(--ck-border);
+  transition: background .1s;
+}
+.ck-table tbody tr:last-child { border-bottom: none; }
+.ck-table tbody tr:hover { background: #fafafa; }
+.ck-table td {
+  padding: 13px 16px;
+  vertical-align: middle;
+}
+.ck-th-center { text-align: center !important; }
+.ck-th-right  { text-align: right  !important; }
+
+/* ============================================================
+   Badges
+   ============================================================ */
+.ck-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .3px;
+  text-transform: uppercase;
+}
+.ck-badge--green { background: var(--ck-green-light); color: var(--ck-green); }
+.ck-badge--blue  { background: var(--ck-blue-light);  color: var(--ck-blue); }
+.ck-badge--gray  { background: #f3f4f6; color: #6b7280; }
+.ck-badge--red   { background: var(--ck-red-light); color: var(--ck-red); }
+
+.ck-count-badge {
+  display: inline-block;
+  min-width: 24px;
+  padding: 2px 7px;
+  background: #f3f4f6;
+  color: #374151;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* ============================================================
+   Stats row
+   ============================================================ */
+.ck-stats-row {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.ck-stat {
+  flex: 1;
+  min-width: 120px;
+  background: #fff;
+  border-radius: var(--ck-radius);
+  box-shadow: var(--ck-shadow);
+  border: 1px solid var(--ck-border);
+  padding: 20px 24px;
+  text-align: center;
+}
+.ck-stat__value {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--ck-primary);
+  line-height: 1;
+  margin-bottom: 6px;
+  letter-spacing: -.5px;
+}
+.ck-stat__value--green { color: var(--ck-green); }
+.ck-stat__value--muted { color: #9ca3af; }
+.ck-stat__label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--ck-gray);
+}
+
+/* ============================================================
+   Search
+   ============================================================ */
+.ck-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1.5px solid var(--ck-border);
+  border-radius: var(--ck-radius-sm);
+  padding: 0 14px;
+  margin-bottom: 14px;
+}
+.ck-search-bar .bi { color: var(--ck-gray); font-size: 14px; flex-shrink: 0; }
+.ck-search-bar input {
+  border: none;
+  outline: none;
+  width: 100%;
+  padding: 10px 0;
+  font-size: 13.5px;
+  background: transparent;
+  color: var(--ck-primary);
+}
+.ck-search-bar input::placeholder { color: #9ca3af; }
+
+/* ============================================================
+   Empty state
+   ============================================================ */
+.ck-empty-state {
+  text-align: center;
+  padding: 64px 24px;
+  background: #fff;
+  border-radius: var(--ck-radius);
+  border: 1px solid var(--ck-border);
+}
+.ck-empty-state__icon { font-size: 40px; color: #d1d5db; margin-bottom: 16px; line-height: 1; }
+.ck-empty-state h3 { font-size: 17px; font-weight: 600; color: var(--ck-primary); margin: 0 0 6px; }
+.ck-empty-state p  { font-size: 13.5px; color: var(--ck-gray); margin: 0; max-width: 360px; display: inline-block; }
+
+/* ============================================================
+   Tabs
+   ============================================================ */
+.ck-tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1.5px solid var(--ck-border);
+  margin-bottom: 24px;
+}
+.ck-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ck-gray);
+  text-decoration: none;
+  border-radius: var(--ck-radius-sm) var(--ck-radius-sm) 0 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1.5px;
+  transition: all .15s;
+}
+.ck-tab:hover { color: var(--ck-primary); }
+.ck-tab--active { color: var(--ck-accent); border-bottom-color: var(--ck-accent); }
+
+/* ============================================================
+   Form elements
+   ============================================================ */
+.ck-field { margin-bottom: 18px; }
+.ck-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 5px;
+}
+.ck-field input[type="text"],
+.ck-field input[type="url"],
+.ck-field input[type="email"],
+.ck-field input[type="password"],
+.ck-field input[type="search"],
+.ck-field select,
+.ck-field textarea {
+  width: 100%;
+  padding: 8px 11px;
+  border: 1.5px solid var(--ck-border);
+  border-radius: var(--ck-radius-sm);
+  font-size: 13.5px;
+  color: var(--ck-primary);
+  background: #fff;
+  box-sizing: border-box;
+  transition: border-color .15s;
+  outline: none;
+}
+.ck-field input:focus,
+.ck-field select:focus,
+.ck-field textarea:focus { border-color: var(--ck-accent); box-shadow: 0 0 0 3px rgba(5,150,105,.08); }
+.ck-field select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b7280' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 11px center; padding-right: 30px; }
+.ck-field-note { font-size: 12px; color: var(--ck-gray); margin: 4px 0 0; }
+.ck-field-note--warn { color: #b45309; }
+.ck-field-note code { background: #f3f4f6; padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+.ck-required { color: var(--ck-red); }
+.ck-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ck-code-textarea { font-family: 'Menlo','Monaco','Courier New',monospace !important; font-size: 12px !important; line-height: 1.6 !important; min-height: 400px; }
+
+/* ============================================================
+   Layout grids
+   ============================================================ */
+.ck-form-grid { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+.ck-settings-grid { display: grid; grid-template-columns: 1fr 280px; gap: 20px; align-items: start; }
+
+/* ============================================================
+   Notices
+   ============================================================ */
+.ck-notice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 14px;
+  border-radius: var(--ck-radius-sm);
+  font-size: 13.5px;
+  font-weight: 500;
+  margin-bottom: 20px;
+  border: 1px solid transparent;
+}
+.ck-notice--success { background: var(--ck-green-light); color: #065f46; border-color: #a7f3d0; }
+.ck-notice--info    { background: var(--ck-blue-light);  color: #1e40af; border-color: #bfdbfe; }
+.ck-notice--error   { background: var(--ck-red-light);   color: #991b1b; border-color: #fca5a5; }
+
+/* ============================================================
+   Misc utilities
+   ============================================================ */
+.ck-link-strong { font-weight: 600; color: var(--ck-primary); text-decoration: none; }
+.ck-link-strong:hover { color: var(--ck-accent); }
+.ck-text-muted { color: var(--ck-gray); }
+.ck-info-list { margin: 0; padding: 0 0 0 16px; font-size: 13px; color: #065f46; line-height: 1.9; }
+.ck-placeholder-list { display: flex; flex-direction: column; gap: 3px; }
+.ck-placeholder-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 9px; border-radius: var(--ck-radius-sm); cursor: pointer; transition: background .1s;
+}
+.ck-placeholder-item:hover { background: var(--ck-gray-light); }
+.ck-placeholder-item code { font-size: 11px; background: #e5e7eb; padding: 2px 6px; border-radius: 3px; white-space: nowrap; flex-shrink: 0; }
+.ck-placeholder-item span { font-size: 12px; color: var(--ck-gray); }
+.ck-test-result { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; }
+.ck-test-result--ok   { color: var(--ck-green); }
+.ck-test-result--fail { color: var(--ck-red); }
+.ck-spin { animation: ck-spin .7s linear infinite; display: inline-block; }
+@keyframes ck-spin { to { transform: rotate(360deg); } }
+
+/* ============================================================
+   Mobile responsive
+   ============================================================ */
+@media (max-width: 900px) {
+  .ck-wrap { padding: 16px; }
+  .ck-form-grid, .ck-settings-grid { grid-template-columns: 1fr; }
+  .ck-field-row { grid-template-columns: 1fr; }
+  .ck-stats-row { gap: 10px; }
+  .ck-table thead { display: none; }
+  .ck-table tbody tr { display: block; padding: 12px 16px; }
+  .ck-table td { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; border: none; }
+  .ck-table td::before { content: attr(data-label); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; color: var(--ck-gray); min-width: 100px; }
+  .ck-th-center, .ck-th-right { text-align: left !important; }
+  .ck-action-group { justify-content: flex-start; }
+  .ck-page-header { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 600px) {
+  .ck-stats-row { grid-template-columns: 1fr 1fr; display: grid; }
+}
