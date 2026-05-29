@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Wand
- * Plugin URI:        https://github.com/poctrl/checkee
+ * Plugin URI:        https://github.com/00pollock/checkee
  * Description:       Post-registration operations for WordPress events: attendee management, QR check-in, and ActiveCampaign tag sync. Works with Kadence Forms.
  * Version:           1.1.0
  * Requires at least: 6.3
@@ -20,7 +20,7 @@ define( 'CHECKEE_URL',     plugin_dir_url( __FILE__ ) );
 // Auto-updates via GitHub releases
 require_once CHECKEE_DIR . 'lib/plugin-update-checker/plugin-update-checker.php';
 $wand_updater = YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
-	'https://github.com/poctrl/checkee/',
+	'https://github.com/00pollock/checkee/',
 	__FILE__,
 	'checkee'
 );
