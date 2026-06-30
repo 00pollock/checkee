@@ -12,8 +12,8 @@ class Admin {
 
 	public static function register_menu(): void {
 		add_menu_page(
-			'Wand',
-			'Wand',
+			'Checkee',
+			'Checkee',
 			'manage_options',
 			'checkee',
 			[ self::class, 'render_events' ],
@@ -56,7 +56,7 @@ class Admin {
 			<div class="ck-page-header">
 				<div class="ck-page-header__left">
 					<h1><i class="bi bi-calendar2-check-fill"></i> Events</h1>
-					<p>Each event links a Kadence form to Wand's check-in system.</p>
+					<p>Each event links a Kadence form to Checkee's check-in system.</p>
 				</div>
 				<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=create' ) ); ?>" class="ck-btn ck-btn-primary">
 					<i class="bi bi-plus-lg"></i> New Event
@@ -147,8 +147,12 @@ class Admin {
 			'ac_registration_tag' => $mapping['ac_registration_tag'] ?? '',
 			'ac_checkin_tag'      => $mapping['ac_checkin_tag']      ?? '',
 			'ac_checkout_tag'     => $mapping['ac_checkout_tag']     ?? '',
+			'checkee_event_id'    => $mapping['checkee_event_id']    ?? '',
 			'status'              => $mapping['status']              ?? 'active',
 		];
+
+		// In connected mode, fetch Checkee events for the dropdown.
+		$checkee_events = \Checkee\API::is_connected() ? \Checkee\API::get_events() : [];
 
 		// Pre-load fields for current form (edit mode)
 		$preloaded_fields = [];
@@ -204,6 +208,30 @@ class Admin {
 								<?php endif; ?>
 								<p class="ck-field-note">Submissions from this form will create attendee records for this event.</p>
 							</div>
+							<?php if ( ! empty( $checkee_events ) ) : ?>
+							<div class="ck-field">
+								<label for="checkee_event_id">Checkee Event <small style="font-weight:normal;color:#6b7280;">(connected)</small></label>
+								<select id="checkee_event_id" name="checkee_event_id">
+									<option value="">— Standalone (local only) —</option>
+									<?php foreach ( $checkee_events as $ce ) : ?>
+									<option value="<?php echo (int) ( $ce['id'] ?? 0 ); ?>"
+									        <?php selected( (string) $v['checkee_event_id'], (string) ( $ce['id'] ?? '' ) ); ?>>
+										<?php echo esc_html( $ce['name'] ?? ( 'Event #' . ( $ce['id'] ?? '?' ) ) ); ?>
+										<?php if ( ! empty( $ce['event_date'] ) ) echo ' — ' . esc_html( $ce['event_date'] ); ?>
+									</option>
+									<?php endforeach; ?>
+								</select>
+								<p class="ck-field-note">Sync registrations to this Checkee event. Leave blank for standalone mode.</p>
+							</div>
+							<?php elseif ( \Checkee\API::is_connected() ) : ?>
+							<div class="ck-field">
+								<label for="checkee_event_id">Checkee Event ID <small style="font-weight:normal;color:#6b7280;">(connected)</small></label>
+								<input type="number" id="checkee_event_id" name="checkee_event_id"
+								       value="<?php echo esc_attr( $v['checkee_event_id'] ); ?>"
+								       placeholder="e.g. 12">
+								<p class="ck-field-note">Enter the Event ID from your Checkee dashboard. Leave blank for standalone mode.</p>
+							</div>
+							<?php endif; ?>
 						</div>
 
 						<!-- Field mapping -->
@@ -213,7 +241,7 @@ class Admin {
 								<?php if ( empty( $preloaded_fields ) ) : ?>
 									Select a form above to load its fields automatically.
 								<?php else : ?>
-									Map your form fields to Wand's attendee data.
+									Map your form fields to Checkee's attendee data.
 								<?php endif; ?>
 							</p>
 							<div class="ck-field-row">
@@ -531,7 +559,7 @@ class Admin {
 	// -------------------------------------------------------------------------
 
 	public static function render_settings(): void {
-		$tab = sanitize_key( $_GET['tab'] ?? 'email' );
+		$tab = sanitize_key( $_GET['tab'] ?? 'connection' );
 		?>
 		<div class="ck-wrap">
 			<?php self::render_notice(); ?>
@@ -542,6 +570,10 @@ class Admin {
 			</div>
 
 			<div class="ck-tabs">
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee-settings&tab=connection' ) ); ?>"
+				   class="ck-tab <?php echo $tab === 'connection' ? 'ck-tab--active' : ''; ?>">
+					<i class="bi bi-cloud-fill"></i> Checkee Connection
+				</a>
 				<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee-settings&tab=email' ) ); ?>"
 				   class="ck-tab <?php echo $tab === 'email' ? 'ck-tab--active' : ''; ?>">
 					<i class="bi bi-envelope-fill"></i> Email
@@ -552,12 +584,128 @@ class Admin {
 				</a>
 			</div>
 
-			<?php if ( $tab === 'email' ) : ?>
+			<?php if ( $tab === 'connection' ) : ?>
+				<?php self::render_connection_settings(); ?>
+			<?php elseif ( $tab === 'email' ) : ?>
 				<?php self::render_email_settings(); ?>
 			<?php else : ?>
 				<?php self::render_integration_settings(); ?>
 			<?php endif; ?>
 		</div>
+		<?php
+	}
+
+	private static function render_connection_settings(): void {
+		$is_connected = \Checkee\API::is_connected();
+		$token        = \Checkee\API::get_token();
+		$base_url     = \Checkee\API::get_base_url();
+		?>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<?php wp_nonce_field( 'checkee_save_connection', '_wpnonce' ); ?>
+			<input type="hidden" name="action" value="checkee_save_connection">
+
+			<div class="ck-settings-grid">
+				<div class="ck-settings-main">
+
+					<?php if ( $is_connected ) : ?>
+					<div class="ck-notice ck-notice--success" style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:8px;background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;font-size:13px;margin-bottom:20px;">
+						<i class="bi bi-check-circle-fill"></i>
+						<span>Connected to Checkee. Events created at <strong>checkee.co</strong> will appear in the event dropdown when you link a form.</span>
+					</div>
+					<?php else : ?>
+					<div class="ck-notice ck-notice--info" style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:8px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a5f;font-size:13px;margin-bottom:20px;">
+						<i class="bi bi-info-circle-fill"></i>
+						<span>Not connected. Enter your Checkee API token to sync registrations to <strong>checkee.co</strong>. Without a token, the plugin works in standalone mode.</span>
+					</div>
+					<?php endif; ?>
+
+					<div class="ck-card">
+						<h2 class="ck-card__title"><i class="bi bi-key-fill"></i> API Token</h2>
+						<p class="ck-card__desc">Generate a token in your Checkee account under <strong>Settings → API Tokens</strong>, then paste it here.</p>
+						<div class="ck-field">
+							<label for="checkee_api_token">Token</label>
+							<input type="password"
+							       id="checkee_api_token"
+							       name="checkee_api_token"
+							       value="<?php echo esc_attr( $token ); ?>"
+							       placeholder="ck_live_xxxxxxxxxxxxxxxx"
+							       autocomplete="new-password">
+							<p class="ck-field-note">Stored securely. Never shared with the browser.</p>
+						</div>
+					</div>
+
+					<div class="ck-card">
+						<h2 class="ck-card__title"><i class="bi bi-globe"></i> API Base URL</h2>
+						<p class="ck-card__desc">Leave as default unless you are running a self-hosted Checkee instance or a local dev environment.</p>
+						<div class="ck-field">
+							<label for="checkee_api_url">Base URL</label>
+							<input type="url"
+							       id="checkee_api_url"
+							       name="checkee_api_url"
+							       value="<?php echo esc_attr( $base_url ); ?>"
+							       placeholder="https://checkee.co">
+						</div>
+					</div>
+
+				</div>
+
+				<div class="ck-settings-side">
+					<div class="ck-card">
+						<button type="submit" class="ck-btn ck-btn-primary ck-btn-full">
+							<i class="bi bi-check-lg"></i> Save Connection
+						</button>
+						<?php if ( $is_connected ) : ?>
+						<button type="button" id="js-test-api" class="ck-btn ck-btn-secondary ck-btn-full" style="margin-top:8px;">
+							<i class="bi bi-wifi"></i> Test Connection
+						</button>
+						<p id="js-test-api-result" style="display:none;font-size:12px;margin-top:8px;padding:8px 12px;border-radius:6px;"></p>
+						<script>
+						document.getElementById('js-test-api').addEventListener('click', function() {
+							var btn = this;
+							var result = document.getElementById('js-test-api-result');
+							btn.disabled = true;
+							btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Testing…';
+							fetch(ajaxurl, {
+								method: 'POST',
+								headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+								body: new URLSearchParams({
+									action: 'checkee_test_api',
+									_wpnonce: '<?php echo esc_js( wp_create_nonce( 'checkee_test_api' ) ); ?>'
+								})
+							})
+							.then(r => r.json())
+							.then(data => {
+								result.style.display = 'block';
+								if (data.success) {
+									result.style.background = '#ecfdf5';
+									result.style.color = '#065f46';
+									result.style.border = '1px solid #6ee7b7';
+								} else {
+									result.style.background = '#fef2f2';
+									result.style.color = '#991b1b';
+									result.style.border = '1px solid #fca5a5';
+								}
+								result.textContent = data.data.message;
+								btn.disabled = false;
+								btn.innerHTML = '<i class="bi bi-wifi"></i> Test Connection';
+							});
+						});
+						</script>
+						<?php endif; ?>
+					</div>
+
+					<div class="ck-card">
+						<h2 class="ck-card__title"><i class="bi bi-question-circle"></i> How it works</h2>
+						<ol style="font-size:13px;color:#555;line-height:1.7;padding-left:16px;margin:0;">
+							<li>Create an event at <a href="https://checkee.co" target="_blank" rel="noopener">checkee.co</a></li>
+							<li>Copy the Event ID from the event page</li>
+							<li>In the event form below, paste the ID into the <em>Checkee Event ID</em> field</li>
+							<li>Form registrations flow to Checkee — check-in and dashboard work across all your WordPress sites</li>
+						</ol>
+					</div>
+				</div>
+			</div>
+		</form>
 		<?php
 	}
 
@@ -649,7 +797,7 @@ class Admin {
 				<div class="ck-settings-main">
 					<div class="ck-card">
 						<h2 class="ck-card__title"><i class="bi bi-lightning-charge-fill"></i> ActiveCampaign</h2>
-						<p class="ck-card__desc">Connect your ActiveCampaign account. Wand will add and remove tags from existing contacts on check-in and check-out. It never creates new contacts.</p>
+						<p class="ck-card__desc">Connect your ActiveCampaign account. Checkee will add and remove tags from existing contacts on check-in and check-out. It never creates new contacts.</p>
 
 						<div class="ck-field">
 							<label for="ac_url">Account URL</label>
@@ -680,7 +828,7 @@ class Admin {
 					<div class="ck-card ck-card--info">
 						<h3><i class="bi bi-info-circle-fill"></i> How it works</h3>
 						<ul class="ck-info-list">
-							<li>Wand <strong>never creates</strong> AC contacts</li>
+							<li>Checkee <strong>never creates</strong> AC contacts</li>
 							<li>It finds existing contacts by email address</li>
 							<li>On <strong>check-in</strong>: adds the configured tag</li>
 							<li>On <strong>check-out</strong>: removes check-in tag, adds check-out tag</li>
@@ -751,6 +899,7 @@ class Admin {
 			'ac_registration_tag' => $_POST['ac_registration_tag'] ?? '',
 			'ac_checkin_tag'      => $_POST['ac_checkin_tag'] ?? '',
 			'ac_checkout_tag'     => $_POST['ac_checkout_tag'] ?? '',
+			'checkee_event_id'    => $_POST['checkee_event_id'] ?? '',
 			'status'              => 'active',
 		] );
 
@@ -780,6 +929,7 @@ class Admin {
 			'ac_registration_tag' => $_POST['ac_registration_tag'] ?? '',
 			'ac_checkin_tag'      => $_POST['ac_checkin_tag'] ?? '',
 			'ac_checkout_tag'     => $_POST['ac_checkout_tag'] ?? '',
+			'checkee_event_id'    => $_POST['checkee_event_id'] ?? '',
 			'status'              => $_POST['status'] ?? 'active',
 		] );
 
@@ -844,6 +994,40 @@ class Admin {
 
 		wp_safe_redirect( admin_url( 'admin.php?page=checkee&action=attendees&id=' . $mapping_id . '&ck_msg=attendee_removed' ) );
 		exit;
+	}
+
+	public static function handle_save_connection(): void {
+		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
+		if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_save_connection' ) ) wp_die( 'Security check failed' );
+
+		\Checkee\API::save(
+			sanitize_text_field( $_POST['checkee_api_token'] ?? '' ),
+			esc_url_raw( $_POST['checkee_api_url'] ?? '' )
+		);
+
+		wp_safe_redirect( admin_url( 'admin.php?page=checkee-settings&tab=connection&ck_msg=saved' ) );
+		exit;
+	}
+
+	public static function ajax_test_api(): void {
+		try {
+			if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_test_api' ) ) {
+				wp_send_json_error( [ 'message' => 'Security check failed. Try refreshing the page.' ] );
+				return;
+			}
+			if ( ! current_user_can( 'manage_options' ) ) {
+				wp_send_json_error( [ 'message' => 'Unauthorized.' ] );
+				return;
+			}
+			$result = \Checkee\API::test_connection();
+			if ( $result['connected'] ) {
+				wp_send_json_success( [ 'message' => $result['message'] ] );
+			} else {
+				wp_send_json_error( [ 'message' => $result['message'] ] );
+			}
+		} catch ( \Throwable $e ) {
+			wp_send_json_error( [ 'message' => 'Error: ' . $e->getMessage() ] );
+		}
 	}
 
 	public static function handle_save_settings(): void {
