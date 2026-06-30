@@ -8,13 +8,13 @@ defined( 'ABSPATH' ) || exit;
  * HTTP client for the Checkee SaaS API.
  *
  * Standalone mode:  API token not set → all methods return null/false gracefully.
- * Connected mode:   API token set → routes data through checkee.co (or dev URL).
+ * Connected mode:   API token set → routes data through checkee.up.railway.app (or configured URL).
  */
 class API {
 
 	private const OPTION_TOKEN   = 'checkee_api_token';
 	private const OPTION_URL     = 'checkee_api_url';
-	private const DEFAULT_URL    = 'https://checkee.co';
+	private const DEFAULT_URL    = 'https://checkee.up.railway.app';
 	private const TIMEOUT        = 10;
 
 	// -------------------------------------------------------------------------

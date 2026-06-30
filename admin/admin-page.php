@@ -610,12 +610,12 @@ class Admin {
 					<?php if ( $is_connected ) : ?>
 					<div class="ck-notice ck-notice--success" style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:8px;background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;font-size:13px;margin-bottom:20px;">
 						<i class="bi bi-check-circle-fill"></i>
-						<span>Connected to Checkee. Events created at <strong>checkee.co</strong> will appear in the event dropdown when you link a form.</span>
+						<span>Connected to Checkee. Events created at <strong>checkee.up.railway.app</strong> will appear in the event dropdown when you link a form.</span>
 					</div>
 					<?php else : ?>
 					<div class="ck-notice ck-notice--info" style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:8px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a5f;font-size:13px;margin-bottom:20px;">
 						<i class="bi bi-info-circle-fill"></i>
-						<span>Not connected. Enter your Checkee API token to sync registrations to <strong>checkee.co</strong>. Without a token, the plugin works in standalone mode.</span>
+						<span>Not connected. Enter your Checkee API token to sync registrations to <strong>checkee.up.railway.app</strong>. Without a token, the plugin works in standalone mode.</span>
 					</div>
 					<?php endif; ?>
 
@@ -643,7 +643,7 @@ class Admin {
 							       id="checkee_api_url"
 							       name="checkee_api_url"
 							       value="<?php echo esc_attr( $base_url ); ?>"
-							       placeholder="https://checkee.co">
+							       placeholder="https://checkee.up.railway.app">
 						</div>
 					</div>
 
@@ -697,7 +697,7 @@ class Admin {
 					<div class="ck-card">
 						<h2 class="ck-card__title"><i class="bi bi-question-circle"></i> How it works</h2>
 						<ol style="font-size:13px;color:#555;line-height:1.7;padding-left:16px;margin:0;">
-							<li>Create an event at <a href="https://checkee.co" target="_blank" rel="noopener">checkee.co</a></li>
+							<li>Create an event at <a href="https://checkee.up.railway.app" target="_blank" rel="noopener">checkee.up.railway.app</a></li>
 							<li>Copy the Event ID from the event page</li>
 							<li>In the event form below, paste the ID into the <em>Checkee Event ID</em> field</li>
 							<li>Form registrations flow to Checkee — check-in and dashboard work across all your WordPress sites</li>
