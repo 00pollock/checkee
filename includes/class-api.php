@@ -118,6 +118,39 @@ class API {
 	}
 
 	/**
+	 * Create an event in Checkee from a WP event mapping.
+	 * Returns the decoded event object on success, null on failure.
+	 */
+	public static function push_event( string $name, ?string $event_date = null ): ?array {
+		if ( ! self::is_connected() ) {
+			return null;
+		}
+
+		$payload = [ 'name' => $name ];
+		if ( $event_date ) {
+			$payload['event_date'] = $event_date;
+		}
+
+		$response = wp_remote_post(
+			self::get_base_url() . '/api/v1/events',
+			[
+				'timeout' => self::TIMEOUT,
+				'headers' => array_merge( self::auth_headers(), [ 'Content-Type' => 'application/json' ] ),
+				'body'    => wp_json_encode( $payload ),
+			]
+		);
+
+		if ( is_wp_error( $response ) ) {
+			return null;
+		}
+
+		$code = wp_remote_retrieve_response_code( $response );
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+
+		return ( $code === 201 && is_array( $body ) ) ? $body : null;
+	}
+
+	/**
 	 * Test the connection — returns [ 'connected' => bool, 'message' => string ].
 	 */
 	public static function test_connection(): array {

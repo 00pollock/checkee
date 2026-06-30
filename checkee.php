@@ -194,6 +194,7 @@ function checkee_boot(): void {
 		add_action( 'admin_post_checkee_save_connection',    [ Admin::class, 'handle_save_connection' ] );
 		add_action( 'wp_ajax_checkee_test_ac',               [ Admin::class, 'ajax_test_ac' ] );
 		add_action( 'wp_ajax_checkee_test_api',              [ Admin::class, 'ajax_test_api' ] );
+		add_action( 'wp_ajax_checkee_push_event',            [ Admin::class, 'ajax_push_event' ] );
 		add_action( 'wp_ajax_checkee_get_form_fields',       [ Admin::class, 'ajax_get_form_fields' ] );
 		add_action( 'wp_ajax_checkee_scan_checkin',          [ Admin::class, 'ajax_scan_checkin' ] );
 	}

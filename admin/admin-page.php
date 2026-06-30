@@ -49,7 +49,8 @@ class Admin {
 	}
 
 	private static function render_event_list(): void {
-		$mappings = Mappings::get_all();
+		$mappings     = Mappings::get_all();
+		$is_connected = \Checkee\API::is_connected();
 		?>
 		<div class="ck-wrap">
 			<?php self::render_notice(); ?>
@@ -78,12 +79,15 @@ class Admin {
 							<th>Form</th>
 							<th class="ck-th-center">Attendees</th>
 							<th class="ck-th-center">Status</th>
+							<?php if ( $is_connected ) : ?>
+							<th class="ck-th-center">Checkee</th>
+							<?php endif; ?>
 							<th class="ck-th-right">Actions</th>
 						</tr>
 					</thead>
 					<tbody>
 					<?php foreach ( $mappings as $m ) : ?>
-						<tr>
+						<tr id="ck-row-<?php echo (int) $m['id']; ?>">
 							<td>
 								<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=attendees&id=' . (int) $m['id'] ) ); ?>" class="ck-link-strong">
 									<?php echo esc_html( $m['event_name'] ); ?>
@@ -100,6 +104,23 @@ class Admin {
 									. ( $active ? 'Active' : 'Inactive' ) . '</span>';
 								?>
 							</td>
+							<?php if ( $is_connected ) : ?>
+							<td class="ck-th-center" id="ck-sync-cell-<?php echo (int) $m['id']; ?>">
+								<?php if ( ! empty( $m['checkee_event_id'] ) ) : ?>
+									<span class="ck-badge ck-badge--green" title="Linked to Checkee event #<?php echo (int) $m['checkee_event_id']; ?>">
+										<i class="bi bi-cloud-check-fill"></i> #<?php echo (int) $m['checkee_event_id']; ?>
+									</span>
+								<?php else : ?>
+									<button type="button"
+									        class="ck-btn ck-btn-sm ck-btn-outline js-push-event"
+									        data-mapping-id="<?php echo (int) $m['id']; ?>"
+									        data-nonce="<?php echo esc_attr( wp_create_nonce( 'checkee_push_event' ) ); ?>"
+									        title="Create this event in Checkee and link it">
+										<i class="bi bi-cloud-upload"></i> Push
+									</button>
+								<?php endif; ?>
+							</td>
+							<?php endif; ?>
 							<td class="ck-th-right">
 								<div class="ck-action-group">
 									<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=attendees&id=' . (int) $m['id'] ) ); ?>" class="ck-icon-btn" title="View Attendees">
@@ -125,6 +146,47 @@ class Admin {
 			</div>
 			<?php endif; ?>
 		</div>
+
+		<?php if ( $is_connected ) : ?>
+		<script>
+		(function(){
+			document.querySelectorAll('.js-push-event').forEach(function(btn){
+				btn.addEventListener('click', function(){
+					var mappingId = this.dataset.mappingId;
+					var nonce     = this.dataset.nonce;
+					var cell      = document.getElementById('ck-sync-cell-' + mappingId);
+					btn.disabled = true;
+					btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Pushing…';
+
+					fetch(ajaxurl, {
+						method: 'POST',
+						headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+						body: new URLSearchParams({
+							action:     'checkee_push_event',
+							mapping_id: mappingId,
+							_wpnonce:   nonce
+						})
+					})
+					.then(r => r.json())
+					.then(function(data){
+						if (data.success) {
+							cell.innerHTML = '<span class="ck-badge ck-badge--green"><i class="bi bi-cloud-check-fill"></i> #' + data.data.checkee_event_id + '</span>';
+						} else {
+							btn.disabled = false;
+							btn.innerHTML = '<i class="bi bi-cloud-upload"></i> Push';
+							alert('Push failed: ' + (data.data && data.data.message ? data.data.message : 'Unknown error'));
+						}
+					})
+					.catch(function(){
+						btn.disabled = false;
+						btn.innerHTML = '<i class="bi bi-cloud-upload"></i> Push';
+						alert('Request failed. Check your connection.');
+					});
+				});
+			});
+		})();
+		</script>
+		<?php endif; ?>
 		<?php
 	}
 
@@ -1073,6 +1135,41 @@ class Admin {
 			}
 		} catch ( \Throwable $e ) {
 			wp_send_json_error( [ 'message' => 'PHP error: ' . $e->getMessage() ] );
+		}
+	}
+
+	public static function ajax_push_event(): void {
+		try {
+			if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_push_event' ) ) {
+				wp_send_json_error( [ 'message' => 'Security check failed. Refresh and try again.' ] );
+				return;
+			}
+			if ( ! current_user_can( 'manage_options' ) ) {
+				wp_send_json_error( [ 'message' => 'Unauthorized.' ] );
+				return;
+			}
+
+			$mapping_id = (int) ( $_POST['mapping_id'] ?? 0 );
+			$mapping    = Mappings::find_by_id( $mapping_id );
+			if ( ! $mapping ) {
+				wp_send_json_error( [ 'message' => 'Event not found.' ] );
+				return;
+			}
+
+			$result = \Checkee\API::push_event( $mapping['event_name'] );
+			if ( ! $result || empty( $result['id'] ) ) {
+				wp_send_json_error( [ 'message' => 'Failed to create event in Checkee. Check your API token and try again.' ] );
+				return;
+			}
+
+			Mappings::update( $mapping_id, [ 'checkee_event_id' => (int) $result['id'] ] );
+
+			wp_send_json_success( [
+				'message'          => 'Event synced to Checkee (ID ' . (int) $result['id'] . ').',
+				'checkee_event_id' => (int) $result['id'],
+			] );
+		} catch ( \Throwable $e ) {
+			wp_send_json_error( [ 'message' => 'Error: ' . $e->getMessage() ] );
 		}
 	}
 
