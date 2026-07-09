@@ -77,9 +77,9 @@ class Attendees {
 	}
 
 	/** Paginated, optionally search-filtered attendee list for a mapping. Always ordered newest first. */
-	public static function get_for_mapping( int $mapping_id, int $limit = 50, int $offset = 0, string $search = '' ): array {
+	public static function get_for_mapping( int $mapping_id, int $limit = 50, int $offset = 0, string $search = '', string $status = '' ): array {
 		global $wpdb;
-		[ $where_sql, $params ] = self::build_search_where( $mapping_id, $search );
+		[ $where_sql, $params ] = self::build_search_where( $mapping_id, $search, $status );
 
 		$sql    = "SELECT * FROM " . DB::table( 'attendees' ) . " WHERE {$where_sql} ORDER BY created_at DESC LIMIT %d OFFSET %d";
 		$params = array_merge( $params, [ $limit, $offset ] );
@@ -220,9 +220,9 @@ class Attendees {
 	}
 
 	/** Total attendees for a mapping, optionally filtered by the same search used by get_for_mapping(). */
-	public static function count_for_mapping( int $mapping_id, string $search = '' ): int {
+	public static function count_for_mapping( int $mapping_id, string $search = '', string $status = '' ): int {
 		global $wpdb;
-		[ $where_sql, $params ] = self::build_search_where( $mapping_id, $search );
+		[ $where_sql, $params ] = self::build_search_where( $mapping_id, $search, $status );
 		$sql = "SELECT COUNT(*) FROM " . DB::table( 'attendees' ) . " WHERE {$where_sql}";
 		return (int) $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
 	}
@@ -233,8 +233,8 @@ class Attendees {
 			?: ( $attendee['email'] ?? 'Unknown' );
 	}
 
-	/** Shared WHERE clause + params for mapping-scoped, optionally search-filtered attendee queries. */
-	private static function build_search_where( int $mapping_id, string $search ): array {
+	/** Shared WHERE clause + params for mapping-scoped, optionally search/status-filtered attendee queries. */
+	private static function build_search_where( int $mapping_id, string $search, string $status = '' ): array {
 		global $wpdb;
 		$where  = 'event_mapping_id = %d';
 		$params = [ $mapping_id ];
@@ -243,6 +243,11 @@ class Attendees {
 			$like    = '%' . $wpdb->esc_like( $search ) . '%';
 			$where  .= ' AND (first_name LIKE %s OR last_name LIKE %s OR email LIKE %s)';
 			$params  = array_merge( $params, [ $like, $like, $like ] );
+		}
+
+		if ( in_array( $status, [ 'registered', 'checked_in', 'checked_out' ], true ) ) {
+			$where   .= ' AND status = %s';
+			$params[] = $status;
 		}
 
 		return [ $where, $params ];

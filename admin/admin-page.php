@@ -55,11 +55,10 @@ class Admin {
 			<?php self::render_notice(); ?>
 			<div class="ck-page-header">
 				<div class="ck-page-header__left">
-					<h1><i class="bi bi-calendar2-check-fill"></i> Events</h1>
-					<p>Each event links a Kadence form to Checkee's check-in system.</p>
+					<h1>Events</h1>
 				</div>
 				<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=create' ) ); ?>" class="ck-btn ck-btn-primary">
-					<i class="bi bi-plus-lg"></i> New Event
+					New event
 				</a>
 			</div>
 
@@ -102,19 +101,14 @@ class Admin {
 							</td>
 							<td class="ck-th-right" data-label="Actions">
 								<div class="ck-action-group">
-									<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=attendees&id=' . (int) $m['id'] ) ); ?>" class="ck-icon-btn" title="View Attendees">
-										<i class="bi bi-people"></i>
-									</a>
-									<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=edit&id=' . (int) $m['id'] ) ); ?>" class="ck-icon-btn" title="Edit">
-										<i class="bi bi-pencil-fill"></i>
+									<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=attendees&id=' . (int) $m['id'] ) ); ?>" class="ck-btn ck-btn-sm ck-btn-outline">
+										View attendees
 									</a>
 									<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ck-inline-form" onsubmit="return confirm('Delete this event? Attendee records will be kept.');">
 										<?php wp_nonce_field( 'checkee_delete_event_' . $m['id'], '_wpnonce' ); ?>
 										<input type="hidden" name="action" value="checkee_delete_event">
 										<input type="hidden" name="event_id" value="<?php echo (int) $m['id']; ?>">
-										<button type="submit" class="ck-icon-btn ck-icon-btn--danger" title="Delete">
-											<i class="bi bi-trash3-fill"></i>
-										</button>
+										<button type="submit" class="ck-btn ck-btn-sm ck-btn-danger">Delete event</button>
 									</form>
 								</div>
 							</td>
@@ -162,7 +156,7 @@ class Admin {
 			<div class="ck-page-header">
 				<div class="ck-page-header__left">
 					<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee' ) ); ?>" class="ck-back-link">
-						<i class="bi bi-arrow-left"></i> Events
+						All events
 					</a>
 					<h1><?php echo esc_html( $title ); ?></h1>
 				</div>
@@ -245,7 +239,7 @@ class Admin {
 								</select>
 							</div>
 							<button type="submit" class="ck-btn ck-btn-primary ck-btn-full">
-								<i class="bi bi-check-lg"></i> <?php echo $is_edit ? 'Save Changes' : 'Create Event'; ?>
+								<i class="bi bi-check-lg"></i> <?php echo $is_edit ? 'Save changes' : 'Create event'; ?>
 							</button>
 							<?php if ( $is_edit ) : ?>
 							<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee' ) ); ?>" class="ck-btn ck-btn-ghost ck-btn-full" style="margin-top:8px;">Cancel</a>
@@ -392,16 +386,14 @@ class Admin {
 			wp_die( esc_html__( 'Event not found.', 'checkee' ) );
 		}
 
-		$search   = sanitize_text_field( wp_unslash( $_GET['s'] ?? '' ) );
 		$per_page = 50;
 		$paged    = max( 1, (int) ( $_GET['paged'] ?? 1 ) );
 
 		$stats       = Attendees::status_counts( $mapping_id );
-		$total_match = '' === $search ? $stats['total'] : Attendees::count_for_mapping( $mapping_id, $search );
-		$total_pages = max( 1, (int) ceil( $total_match / $per_page ) );
+		$total_pages = max( 1, (int) ceil( $stats['total'] / $per_page ) );
 		$paged       = min( $paged, $total_pages );
 		$offset      = ( $paged - 1 ) * $per_page;
-		$attendees   = Attendees::get_for_mapping( $mapping_id, $per_page, $offset, $search );
+		$attendees   = Attendees::get_for_mapping( $mapping_id, $per_page, $offset );
 		$checked     = $stats['checked_in'];
 
 		$base_url        = admin_url( 'admin.php?page=checkee&action=attendees&id=' . $mapping_id );
@@ -412,36 +404,32 @@ class Admin {
 			<div class="ck-page-header">
 				<div class="ck-page-header__left">
 					<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee' ) ); ?>" class="ck-back-link">
-						<i class="bi bi-arrow-left"></i> Events
+						All events
 					</a>
 					<h1><?php echo esc_html( $mapping['event_name'] ); ?></h1>
 				</div>
 				<div class="ck-action-group">
 					<button type="button" id="ck-walkin-toggle" class="ck-btn ck-btn-primary">
-						<i class="bi bi-person-plus-fill"></i> Add Walk-in
+						Add walk-in
 					</button>
 					<?php if ( $ac_sync_ready ) : ?>
 					<button type="button" id="ck-sync-ac" class="ck-btn ck-btn-outline" data-mapping-id="<?php echo (int) $mapping_id; ?>" data-nonce="<?php echo esc_attr( wp_create_nonce( 'checkee_sync_ac_attendance' ) ); ?>">
-						<i class="bi bi-arrow-repeat"></i> Sync Attendees
+						Sync attendees
 					</button>
 					<?php endif; ?>
 					<?php if ( $stats['total'] > 0 ) : ?>
 					<button type="button" id="ck-resend-qr" class="ck-btn ck-btn-outline" data-mapping-id="<?php echo (int) $mapping_id; ?>" data-nonce="<?php echo esc_attr( wp_create_nonce( 'checkee_resend_qr_batch' ) ); ?>" data-total="<?php echo (int) $stats['total']; ?>">
-						<i class="bi bi-envelope-fill"></i> Resend All QR Codes
+						Resend all QR codes
 					</button>
 					<?php endif; ?>
-					<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=checkee_export_attendees&mapping_id=' . $mapping_id ), 'checkee_export_attendees_' . $mapping_id ) ); ?>" class="ck-btn ck-btn-outline">
-						<i class="bi bi-download"></i> Export CSV
-					</a>
 					<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=edit&id=' . $mapping_id ) ); ?>" class="ck-btn ck-btn-outline">
-						<i class="bi bi-pencil"></i> Edit Event
+						Edit event
 					</a>
 				</div>
 			</div>
 
 			<div class="ck-card" id="ck-walkin-form-card" hidden>
-				<h2 class="ck-card__title"><i class="bi bi-person-plus-fill"></i> Register + Check In</h2>
-				<p class="ck-card__desc">For attendees who show up without registering online. Tags them with both this event's registration and check-in ActiveCampaign tags — creates the AC contact if one doesn't already exist.</p>
+				<h2 class="ck-card__title">Register + Check In</h2>
 				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
 					<?php wp_nonce_field( 'checkee_add_walkin_' . $mapping_id, '_wpnonce' ); ?>
 					<input type="hidden" name="action" value="checkee_add_walkin">
@@ -462,7 +450,7 @@ class Admin {
 					</div>
 					<div class="ck-inline-actions">
 						<button type="submit" class="ck-btn ck-btn-primary">
-							<i class="bi bi-check-lg"></i> Register &amp; Check In
+							Register &amp; check in
 						</button>
 						<button type="button" id="ck-walkin-cancel" class="ck-btn ck-btn-ghost">Cancel</button>
 					</div>
@@ -504,7 +492,7 @@ class Admin {
 				btn.addEventListener('click', function(){
 					btn.disabled = true;
 					var original = btn.innerHTML;
-					btn.innerHTML = '<i class="bi bi-arrow-repeat ck-spin"></i> Syncing…';
+					btn.innerHTML = 'Syncing…';
 					result.textContent = '';
 
 					fetch(ajaxurl, {
@@ -559,7 +547,7 @@ class Admin {
 					sendBatch(offset).then(function(data){
 						if (!data.success) {
 							btn.disabled = false;
-							btn.innerHTML = '<i class="bi bi-envelope-fill"></i> Resend All QR Codes';
+							btn.innerHTML = 'Resend all QR codes';
 							result.textContent = (data.data && data.data.message) ? data.data.message : 'Resend failed after ' + sentSoFar + ' sent.';
 							return;
 						}
@@ -569,14 +557,14 @@ class Admin {
 
 						if (data.data.done) {
 							btn.disabled = false;
-							btn.innerHTML = '<i class="bi bi-envelope-fill"></i> Resend All QR Codes';
+							btn.innerHTML = 'Resend all QR codes';
 							result.textContent = 'Done — resent QR code emails to ' + sentSoFar + ' of ' + total + ' attendees.';
 						} else {
 							setTimeout(function(){ runFrom(data.data.next_offset, sentSoFar); }, BATCH_DELAY_MS);
 						}
 					}).catch(function(){
 						btn.disabled = false;
-						btn.innerHTML = '<i class="bi bi-envelope-fill"></i> Resend All QR Codes';
+						btn.innerHTML = 'Resend all QR codes';
 						result.textContent = 'Request failed after ' + sentSoFar + ' sent. Check your connection and try again.';
 					});
 				}
@@ -585,7 +573,7 @@ class Admin {
 					var total = btn.getAttribute('data-total');
 					if (!confirm('Resend the QR code email to all ' + total + ' registered attendees?')) return;
 					btn.disabled = true;
-					btn.innerHTML = '<i class="bi bi-arrow-repeat ck-spin"></i> Resending…';
+					btn.innerHTML = 'Resending…';
 					result.textContent = 'Resent 0/' + total + '…';
 					runFrom(0, 0);
 				});
@@ -596,15 +584,15 @@ class Admin {
 			<!-- Stats row (always true totals, independent of pagination/search) -->
 			<div class="ck-stats-row">
 				<div class="ck-stat">
-					<div class="ck-stat__value"><?php echo (int) $stats['total']; ?></div>
+					<div class="ck-stat__value" id="ck-stat-total"><?php echo (int) $stats['total']; ?></div>
 					<div class="ck-stat__label">Registered</div>
 				</div>
 				<div class="ck-stat">
-					<div class="ck-stat__value ck-stat__value--green"><?php echo (int) $checked; ?></div>
+					<div class="ck-stat__value ck-stat__value--green" id="ck-stat-checked-in"><?php echo (int) $checked; ?></div>
 					<div class="ck-stat__label">Checked In</div>
 				</div>
 				<div class="ck-stat">
-					<div class="ck-stat__value ck-stat__value--muted"><?php echo (int) ( $stats['total'] - $checked ); ?></div>
+					<div class="ck-stat__value ck-stat__value--muted" id="ck-stat-not-checked-in"><?php echo (int) ( $stats['total'] - $checked ); ?></div>
 					<div class="ck-stat__label">Not Checked In</div>
 				</div>
 			</div>
@@ -618,62 +606,30 @@ class Admin {
 			<?php else : ?>
 
 			<!-- Search -->
-			<form method="get" class="ck-search-bar">
-				<input type="hidden" name="page" value="checkee">
-				<input type="hidden" name="action" value="attendees">
-				<input type="hidden" name="id" value="<?php echo (int) $mapping_id; ?>">
+			<div class="ck-search-bar">
 				<i class="bi bi-search"></i>
-				<input type="search" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="Search by name or email…" autocomplete="off">
-				<?php if ( '' !== $search ) : ?>
-				<a href="<?php echo esc_url( $base_url ); ?>" class="ck-btn ck-btn-sm ck-btn-ghost">Clear</a>
-				<?php endif; ?>
-				<button type="submit" class="ck-btn ck-btn-sm ck-btn-primary">Search</button>
-				<?php if ( ! empty( $attendees ) ) : ?>
-				<button type="button" id="ck-select-all-link" class="ck-btn ck-btn-sm ck-btn-ghost">Select all on page</button>
-				<?php endif; ?>
-			</form>
-
-			<div class="ck-list-meta">
-				<?php if ( $total_match > 0 ) :
-					$range_start = $offset + 1;
-					$range_end   = min( $offset + $per_page, $total_match );
-					?>
-					<span>
-						Showing <?php echo (int) $range_start; ?>–<?php echo (int) $range_end; ?> of <?php echo (int) $total_match; ?> attendee<?php echo 1 === $total_match ? '' : 's'; ?>
-						<?php if ( '' !== $search ) : ?>
-							matching “<?php echo esc_html( $search ); ?>”
-						<?php endif; ?>
-					</span>
-				<?php else : ?>
-					<span>No attendees match “<?php echo esc_html( $search ); ?>”.</span>
-				<?php endif; ?>
+				<input type="text" id="ck-search" placeholder="Search by name or email…" autocomplete="off">
+				<button type="button" id="ck-search-clear" class="ck-btn ck-btn-sm ck-btn-ghost" hidden>Clear</button>
+				<select id="ck-status-filter" class="ck-status-filter">
+					<option value="">All Statuses</option>
+					<option value="registered">Registered</option>
+					<option value="checked_in">Checked In</option>
+					<option value="checked_out">Checked Out</option>
+				</select>
 			</div>
 
-			<?php if ( ! empty( $attendees ) ) : ?>
-
-			<!-- Bulk actions -->
-			<div class="ck-bulk-bar" id="ck-bulk-bar" hidden>
-				<span class="ck-bulk-bar__count" id="ck-bulk-count">0 selected</span>
-				<div class="ck-action-group">
-					<button type="button" class="ck-btn ck-btn-sm ck-btn-primary" data-bulk="checkin"><i class="bi bi-box-arrow-in-right"></i> Check In</button>
-					<button type="button" class="ck-btn ck-btn-sm ck-btn-outline" data-bulk="checkout"><i class="bi bi-box-arrow-right"></i> Check Out</button>
-					<button type="button" class="ck-btn ck-btn-sm ck-btn-danger" data-bulk="delete"><i class="bi bi-trash3-fill"></i> Delete</button>
-				</div>
+			<div class="ck-list-meta" id="ck-list-meta">
+				<?php
+				$range_start = $offset + 1;
+				$range_end   = min( $offset + $per_page, $stats['total'] );
+				?>
+				<span>Showing <?php echo (int) $range_start; ?>–<?php echo (int) $range_end; ?> of <?php echo (int) $stats['total']; ?> attendee<?php echo 1 === $stats['total'] ? '' : 's'; ?></span>
 			</div>
-
-			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="ck-bulk-form">
-				<?php wp_nonce_field( 'checkee_bulk_attendee_action', '_wpnonce' ); ?>
-				<input type="hidden" name="action" value="checkee_bulk_attendee_action">
-				<input type="hidden" name="mapping_id" value="<?php echo (int) $mapping_id; ?>">
-				<input type="hidden" name="bulk_action" id="ck-bulk-action-input" value="">
-				<input type="hidden" name="attendee_ids" id="ck-bulk-ids-input" value="">
-			</form>
 
 			<div class="ck-card ck-card--flush">
 				<table class="ck-table" id="ck-attendees-table">
 					<thead>
 						<tr>
-							<th class="ck-th-check"><input type="checkbox" id="ck-select-all"></th>
 							<th>First Name</th>
 							<th>Last Name</th>
 							<th>Email</th>
@@ -682,69 +638,20 @@ class Admin {
 							<th class="ck-th-right">Actions</th>
 						</tr>
 					</thead>
-					<tbody>
-					<?php foreach ( $attendees as $a ) :
-						$status_map = [
-							'checked_in'  => [ 'label' => 'Checked In',  'class' => 'ck-badge--green' ],
-							'checked_out' => [ 'label' => 'Checked Out', 'class' => 'ck-badge--gray'  ],
-							'registered'  => [ 'label' => 'Registered',  'class' => 'ck-badge--blue'  ],
-						];
-						$s = $status_map[ $a['status'] ] ?? $status_map['registered'];
-					?>
-					<tr>
-						<td class="ck-th-check" data-label="Select"><input type="checkbox" class="ck-row-check" data-id="<?php echo (int) $a['id']; ?>"></td>
-						<td data-label="First Name"><?php echo esc_html( $a['first_name'] ); ?></td>
-						<td data-label="Last Name"><?php echo esc_html( $a['last_name'] ); ?></td>
-						<td class="ck-text-muted" data-label="Email"><?php echo esc_html( $a['email'] ); ?></td>
-						<td class="ck-th-center" data-label="Status">
-							<span class="ck-badge <?php echo esc_attr( $s['class'] ); ?>"><?php echo esc_html( $s['label'] ); ?></span>
-						</td>
-						<td class="ck-th-center ck-text-muted" data-label="Registered"><?php echo esc_html( wp_date( 'M j, Y', strtotime( $a['created_at'] ) ) ); ?></td>
-						<td class="ck-th-right" data-label="Actions">
-							<div class="ck-action-group">
-								<?php if ( $a['status'] !== 'checked_in' ) : ?>
-								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ck-inline-form">
-									<?php wp_nonce_field( 'checkee_manual_checkin_' . $a['id'], '_wpnonce' ); ?>
-									<input type="hidden" name="action"         value="checkee_admin_checkin">
-									<input type="hidden" name="attendee_id"    value="<?php echo (int) $a['id']; ?>">
-									<input type="hidden" name="checkin_action" value="in">
-									<input type="hidden" name="mapping_id"     value="<?php echo (int) $mapping_id; ?>">
-									<button type="submit" class="ck-btn ck-btn-sm ck-btn-primary">Check In</button>
-								</form>
-								<?php endif; ?>
-								<?php if ( $a['status'] === 'checked_in' ) : ?>
-								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ck-inline-form">
-									<?php wp_nonce_field( 'checkee_manual_checkin_' . $a['id'], '_wpnonce' ); ?>
-									<input type="hidden" name="action"         value="checkee_admin_checkin">
-									<input type="hidden" name="attendee_id"    value="<?php echo (int) $a['id']; ?>">
-									<input type="hidden" name="checkin_action" value="out">
-									<input type="hidden" name="mapping_id"     value="<?php echo (int) $mapping_id; ?>">
-									<button type="submit" class="ck-btn ck-btn-sm ck-btn-outline">Check Out</button>
-								</form>
-								<?php endif; ?>
-								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ck-inline-form">
-									<?php wp_nonce_field( 'checkee_delete_attendee_' . $a['id'], '_wpnonce' ); ?>
-									<input type="hidden" name="action"      value="checkee_delete_attendee">
-									<input type="hidden" name="attendee_id" value="<?php echo (int) $a['id']; ?>">
-									<input type="hidden" name="mapping_id"  value="<?php echo (int) $mapping_id; ?>">
-									<button type="submit" class="ck-icon-btn ck-icon-btn--danger" title="Remove Registration">
-										<i class="bi bi-trash3-fill"></i>
-									</button>
-								</form>
-							</div>
-						</td>
-					</tr>
-					<?php endforeach; ?>
+					<tbody id="ck-attendees-tbody">
+					<?php foreach ( $attendees as $a ) {
+						echo self::render_attendee_row( $a, $mapping_id );
+					} ?>
 					</tbody>
 				</table>
 			</div>
 
 			<?php if ( $total_pages > 1 ) :
-				$page_base    = $base_url . ( '' !== $search ? '&s=' . rawurlencode( $search ) : '' );
+				$page_base    = $base_url;
 				$prev_disabled = $paged <= 1;
 				$next_disabled = $paged >= $total_pages;
 				?>
-			<div class="ck-pagination">
+			<div class="ck-pagination" id="ck-pagination">
 				<?php if ( $prev_disabled ) : ?>
 					<span class="ck-btn ck-btn-sm ck-btn-outline ck-btn--disabled">&laquo; Prev</span>
 				<?php else : ?>
@@ -761,70 +668,200 @@ class Admin {
 
 			<script>
 			(function(){
-				var selectAll  = document.getElementById('ck-select-all');
-				var bulkBar    = document.getElementById('ck-bulk-bar');
-				var bulkCount  = document.getElementById('ck-bulk-count');
-				var bulkForm   = document.getElementById('ck-bulk-form');
-				var actionIn   = document.getElementById('ck-bulk-action-input');
-				var idsIn      = document.getElementById('ck-bulk-ids-input');
+				var input   = document.getElementById('ck-search');
+				var clear   = document.getElementById('ck-search-clear');
+				var status  = document.getElementById('ck-status-filter');
+				var tbody   = document.getElementById('ck-attendees-tbody');
+				var meta    = document.getElementById('ck-list-meta');
+				var pager   = document.getElementById('ck-pagination');
+				if (!input || !tbody) return;
 
-				function rowChecks() {
-					return Array.prototype.slice.call(document.querySelectorAll('#ck-attendees-table .ck-row-check'));
+				var STATUS_LABELS = { registered: 'Registered', checked_in: 'Checked In', checked_out: 'Checked Out' };
+
+				var originalRows  = tbody.innerHTML;
+				var originalMeta  = meta.innerHTML;
+				var originalPager = pager ? pager.outerHTML : '';
+				var mappingId     = <?php echo (int) $mapping_id; ?>;
+				var nonce         = '<?php echo esc_js( wp_create_nonce( 'checkee_search_attendees' ) ); ?>';
+				var debounceTimer = null;
+				var currentRequest = 0;
+
+				function isFiltering() {
+					return input.value.trim() !== '' || (status && status.value !== '');
 				}
 
-				function updateBulkBar() {
-					var checked = rowChecks().filter(function(c){ return c.checked; });
-					if (checked.length) {
-						bulkBar.hidden = false;
-						bulkCount.textContent = checked.length + ' selected';
-					} else {
-						bulkBar.hidden = true;
-					}
-					if (selectAll) {
-						var all = rowChecks();
-						selectAll.checked = all.length > 0 && checked.length === all.length;
-					}
+				function restore() {
+					tbody.innerHTML = originalRows;
+					meta.innerHTML  = originalMeta;
+					if (pager) { pager.outerHTML = originalPager; pager = document.getElementById('ck-pagination'); }
+					clear.hidden = true;
 				}
 
-				rowChecks().forEach(function(cb){
-					cb.addEventListener('change', updateBulkBar);
+				function describeFilter(term, statusVal) {
+					var parts = [];
+					if (term) parts.push('matching “' + term + '”');
+					if (statusVal) parts.push('with status “' + STATUS_LABELS[statusVal] + '”');
+					return parts.length ? ' ' + parts.join(' ') : '';
+				}
+
+				function runFilter() {
+					var term      = input.value.trim();
+					var statusVal = status ? status.value : '';
+					clear.hidden  = ! isFiltering();
+
+					if (! isFiltering()) {
+						restore();
+						return;
+					}
+
+					var requestId = ++currentRequest;
+					fetch(ajaxurl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+						body: 'action=checkee_search_attendees'
+							+ '&mapping_id=' + encodeURIComponent(mappingId)
+							+ '&s=' + encodeURIComponent(term)
+							+ '&status=' + encodeURIComponent(statusVal)
+							+ '&_wpnonce=' + encodeURIComponent(nonce)
+					})
+					.then(function(r){ return r.json(); })
+					.then(function(data){
+						if (requestId !== currentRequest || !data.success) return;
+						tbody.innerHTML = data.data.rows;
+						if (pager) { pager.remove(); pager = null; }
+						var count = data.data.total_match;
+						var desc  = describeFilter(term, statusVal);
+						if (count > 0) {
+							var shownNote = data.data.total_match > data.data.shown ? ' (showing first ' + data.data.shown + ')' : '';
+							meta.innerHTML = '<span>' + count + ' attendee' + (count === 1 ? '' : 's') + desc + shownNote + '</span>';
+						} else {
+							meta.innerHTML = '<span>No attendees found' + desc + '.</span>';
+						}
+					});
+				}
+
+				input.addEventListener('input', function(){
+					clearTimeout(debounceTimer);
+					debounceTimer = setTimeout(runFilter, 250);
 				});
 
-				if (selectAll) {
-					selectAll.addEventListener('change', function(){
-						rowChecks().forEach(function(cb){ cb.checked = selectAll.checked; });
-						updateBulkBar();
-					});
+				if (status) {
+					status.addEventListener('change', runFilter);
 				}
 
-				var selectAllLink = document.getElementById('ck-select-all-link');
-				if (selectAllLink && selectAll) {
-					selectAllLink.addEventListener('click', function(){
-						selectAll.checked = !selectAll.checked;
-						selectAll.dispatchEvent(new Event('change'));
-					});
+				clear.addEventListener('click', function(){
+					input.value = '';
+					if (status) status.value = '';
+					restore();
+					input.focus();
+				});
+
+				var checkinNonce = '<?php echo esc_js( wp_create_nonce( 'checkee_manual_checkin_ajax' ) ); ?>';
+
+				function updateStatCards(stats) {
+					var totalEl   = document.getElementById('ck-stat-total');
+					var checkedEl = document.getElementById('ck-stat-checked-in');
+					var notEl     = document.getElementById('ck-stat-not-checked-in');
+					if (totalEl)   totalEl.textContent   = stats.total;
+					if (checkedEl) checkedEl.textContent = stats.checked_in;
+					if (notEl)     notEl.textContent     = stats.total - stats.checked_in;
 				}
 
-				if (bulkBar) {
-					bulkBar.querySelectorAll('[data-bulk]').forEach(function(btn){
-						btn.addEventListener('click', function(){
-							var action = this.getAttribute('data-bulk');
-							var ids = rowChecks().filter(function(c){ return c.checked; }).map(function(c){ return c.getAttribute('data-id'); });
-							if (!ids.length) return;
-							if (action === 'delete' && !confirm('Remove ' + ids.length + ' registration(s)? This cannot be undone.')) return;
-							actionIn.value = action;
-							idsIn.value = ids.join(',');
-							bulkForm.submit();
-						});
-					});
+				function replaceRow(container, id, rowHtml) {
+					var tr = container.querySelector('tr[data-attendee-id="' + id + '"]');
+					if (!tr) return;
+					var wrap = document.createElement('tbody');
+					wrap.innerHTML = rowHtml;
+					tr.replaceWith(wrap.firstElementChild);
 				}
+
+				function syncCachedRow(id, rowHtml) {
+					var temp = document.createElement('tbody');
+					temp.innerHTML = originalRows;
+					replaceRow(temp, id, rowHtml);
+					originalRows = temp.innerHTML;
+				}
+
+				tbody.addEventListener('click', function(e){
+					var btn = e.target.closest('.ck-checkin-btn');
+					if (!btn) return;
+					var id        = btn.getAttribute('data-id');
+					var actionVal = btn.getAttribute('data-action');
+					btn.disabled  = true;
+
+					fetch(ajaxurl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+						body: 'action=checkee_manual_checkin'
+							+ '&attendee_id=' + encodeURIComponent(id)
+							+ '&checkin_action=' + encodeURIComponent(actionVal)
+							+ '&mapping_id=' + encodeURIComponent(mappingId)
+							+ '&_wpnonce=' + encodeURIComponent(checkinNonce)
+					})
+					.then(function(r){ return r.json(); })
+					.then(function(data){
+						if (!data.success) {
+							btn.disabled = false;
+							alert((data.data && data.data.message) ? data.data.message : 'Action failed.');
+							return;
+						}
+						replaceRow(tbody, id, data.data.row);
+						updateStatCards(data.data.stats);
+						syncCachedRow(id, data.data.row);
+					})
+					.catch(function(){
+						btn.disabled = false;
+						alert('Request failed. Check your connection and try again.');
+					});
+				});
 			})();
 			</script>
-			<?php endif; // ! empty $attendees ?>
 			<?php endif; // 0 === $stats['total'] ?>
 
 		</div>
 		<?php
+	}
+
+	/** Renders a single attendee <tr> — shared by the page render and the live-search AJAX endpoint. */
+	private static function render_attendee_row( array $a, int $mapping_id ): string {
+		$status_map = [
+			'checked_in'  => [ 'label' => 'Checked In',  'class' => 'ck-badge--green' ],
+			'checked_out' => [ 'label' => 'Checked Out', 'class' => 'ck-badge--gray'  ],
+			'registered'  => [ 'label' => 'Registered',  'class' => 'ck-badge--blue'  ],
+		];
+		$s = $status_map[ $a['status'] ] ?? $status_map['registered'];
+
+		ob_start();
+		?>
+		<tr data-attendee-id="<?php echo (int) $a['id']; ?>">
+			<td data-label="First Name"><?php echo esc_html( $a['first_name'] ); ?></td>
+			<td data-label="Last Name"><?php echo esc_html( $a['last_name'] ); ?></td>
+			<td class="ck-text-muted" data-label="Email"><?php echo esc_html( $a['email'] ); ?></td>
+			<td class="ck-th-center" data-label="Status">
+				<span class="ck-badge <?php echo esc_attr( $s['class'] ); ?>"><?php echo esc_html( $s['label'] ); ?></span>
+			</td>
+			<td class="ck-th-center ck-text-muted" data-label="Registered"><?php echo esc_html( wp_date( 'M j, Y', strtotime( $a['created_at'] ) ) ); ?></td>
+			<td class="ck-th-right" data-label="Actions">
+				<div class="ck-action-group">
+					<?php if ( $a['status'] !== 'checked_in' ) : ?>
+					<button type="button" class="ck-btn ck-btn-sm ck-btn-primary ck-checkin-btn" data-id="<?php echo (int) $a['id']; ?>" data-action="in">Check in</button>
+					<?php else : ?>
+					<button type="button" class="ck-btn ck-btn-sm ck-btn-outline ck-checkin-btn" data-id="<?php echo (int) $a['id']; ?>" data-action="out">Check out</button>
+					<?php endif; ?>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ck-inline-form">
+						<?php wp_nonce_field( 'checkee_delete_attendee_' . $a['id'], '_wpnonce' ); ?>
+						<input type="hidden" name="action"      value="checkee_delete_attendee">
+						<input type="hidden" name="attendee_id" value="<?php echo (int) $a['id']; ?>">
+						<input type="hidden" name="mapping_id"  value="<?php echo (int) $mapping_id; ?>">
+						<button type="submit" class="ck-icon-btn ck-icon-btn--danger" title="Remove Registration">
+							<i class="bi bi-trash3-fill"></i>
+						</button>
+					</form>
+				</div>
+			</td>
+		</tr>
+		<?php
+		return ob_get_clean();
 	}
 
 	// -------------------------------------------------------------------------
@@ -929,7 +966,7 @@ class Admin {
 					</div>
 					<div class="ck-card">
 						<button type="submit" class="ck-btn ck-btn-primary ck-btn-full">
-							<i class="bi bi-check-lg"></i> Save Email Settings
+							<i class="bi bi-check-lg"></i> Save email settings
 						</button>
 					</div>
 				</div>
@@ -965,11 +1002,11 @@ class Admin {
 
 						<div class="ck-inline-actions">
 							<button type="submit" class="ck-btn ck-btn-primary">
-								<i class="bi bi-check-lg"></i> Save Credentials
+								<i class="bi bi-check-lg"></i> Save credentials
 							</button>
 							<?php if ( $ac_url && $ac_key ) : ?>
 							<button type="button" id="ck-test-ac" class="ck-btn ck-btn-outline">
-								<i class="bi bi-wifi"></i> Test Connection
+								<i class="bi bi-wifi"></i> Test connection
 							</button>
 							<span id="ck-test-result"></span>
 							<?php endif; ?>
@@ -985,7 +1022,7 @@ class Admin {
 							<li>On <strong>walk-in</strong>: creates the AC contact if it doesn't exist yet, then tags it</li>
 							<li>On <strong>check-in</strong>: adds the configured tag</li>
 							<li>On <strong>check-out</strong>: removes check-in tag, adds check-out tag</li>
-							<li><strong>Sync Attendees</strong>: pulls contacts tagged with the registration tag and creates any missing local record (useful if a site's local data has fallen behind AC), then reconciles check-in status against the check-in tag — AC is treated as the source of truth for both</li>
+							<li><strong>Sync attendees</strong>: pulls contacts tagged with the registration tag and creates any missing local record (useful if a site's local data has fallen behind AC), then reconciles check-in status against the check-in tag — AC is treated as the source of truth for both</li>
 							<li>Tag names are configured per-event</li>
 						</ul>
 					</div>
@@ -1010,7 +1047,7 @@ class Admin {
 			.then( r => r.json() )
 			.then( data => {
 				btn.disabled = false;
-				btn.innerHTML = '<i class="bi bi-wifi"></i> Test Connection';
+				btn.innerHTML = '<i class="bi bi-wifi"></i> Test connection';
 				var ok  = data.success === true;
 				var msg = (data.data && data.data.message) ? data.data.message : (ok ? 'Connected!' : 'Failed');
 				result.innerHTML = '<span class="ck-test-result ' + (ok ? 'ck-test-result--ok' : 'ck-test-result--fail') + '">'
@@ -1018,7 +1055,7 @@ class Admin {
 			})
 			.catch( () => {
 				btn.disabled = false;
-				btn.innerHTML = '<i class="bi bi-wifi"></i> Test Connection';
+				btn.innerHTML = '<i class="bi bi-wifi"></i> Test connection';
 				result.innerHTML = '<span class="ck-test-result ck-test-result--fail"><i class="bi bi-x-circle-fill"></i> Request failed. Check browser console.</span>';
 			});
 		});
@@ -1099,21 +1136,38 @@ class Admin {
 		exit;
 	}
 
-	public static function handle_checkin_post(): void {
-		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
-		$attendee_id = (int) ( $_POST['attendee_id'] ?? 0 );
-		if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_manual_checkin_' . $attendee_id ) ) wp_die( 'Security check failed' );
+	public static function ajax_manual_checkin(): void {
+		try {
+			if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_manual_checkin_ajax' ) ) {
+				wp_send_json_error( [ 'message' => 'Security check failed. Refresh the page and try again.' ] );
+				return;
+			}
+			if ( ! current_user_can( 'manage_options' ) ) {
+				wp_send_json_error( [ 'message' => 'Unauthorized.' ] );
+				return;
+			}
 
-		$action     = sanitize_key( $_POST['checkin_action'] ?? 'in' );
-		$mapping_id = (int) ( $_POST['mapping_id'] ?? 0 );
-		$attendee   = Attendees::find_by_id( $attendee_id );
+			$attendee_id = (int) ( $_POST['attendee_id'] ?? 0 );
+			$action      = sanitize_key( $_POST['checkin_action'] ?? 'in' );
+			$mapping_id  = (int) ( $_POST['mapping_id'] ?? 0 );
+			$attendee    = Attendees::find_by_id( $attendee_id );
 
-		if ( $attendee ) {
-			Checkin::process( $attendee['qr_token'], $action );
+			if ( ! $attendee ) {
+				wp_send_json_error( [ 'message' => 'Attendee not found.' ] );
+				return;
+			}
+
+			Checkin::process( $attendee['qr_token'], 'in' === $action ? 'in' : 'out' );
+
+			$attendee = Attendees::find_by_id( $attendee_id );
+
+			wp_send_json_success( [
+				'row'   => self::render_attendee_row( $attendee, $mapping_id ),
+				'stats' => Attendees::status_counts( $mapping_id ),
+			] );
+		} catch ( \Throwable $e ) {
+			wp_send_json_error( [ 'message' => 'Error: ' . $e->getMessage() ] );
 		}
-
-		wp_safe_redirect( admin_url( 'admin.php?page=checkee&action=attendees&id=' . $mapping_id . '&ck_msg=saved' ) );
-		exit;
 	}
 
 	public static function handle_delete_attendee(): void {
@@ -1145,75 +1199,6 @@ class Admin {
 		}
 
 		wp_safe_redirect( admin_url( 'admin.php?page=checkee&action=attendees&id=' . $mapping_id . '&ck_msg=attendee_removed' ) );
-		exit;
-	}
-
-	public static function handle_bulk_attendee_action(): void {
-		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
-		if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_bulk_attendee_action' ) ) wp_die( 'Security check failed' );
-
-		$mapping_id  = (int) ( $_POST['mapping_id'] ?? 0 );
-		$bulk_action = sanitize_key( $_POST['bulk_action'] ?? '' );
-		$ids         = array_filter( array_map( 'intval', explode( ',', (string) ( $_POST['attendee_ids'] ?? '' ) ) ) );
-
-		foreach ( $ids as $attendee_id ) {
-			$attendee = Attendees::find_by_id( $attendee_id );
-			if ( ! $attendee ) {
-				continue;
-			}
-
-			if ( 'checkin' === $bulk_action ) {
-				Checkin::process( $attendee['qr_token'], 'in' );
-			} elseif ( 'checkout' === $bulk_action ) {
-				Checkin::process( $attendee['qr_token'], 'out' );
-			} elseif ( 'delete' === $bulk_action ) {
-				$mapping = Mappings::find_by_id( (int) ( $attendee['event_mapping_id'] ?? 0 ) );
-				if ( $mapping && ! empty( $mapping['ac_registration_tag'] ) ) {
-					try {
-						$ac = new ActiveCampaign();
-						if ( $ac->is_configured() ) {
-							$contact_id = $ac->find_contact( $attendee['email'] );
-							if ( $contact_id ) {
-								$ac->remove_tag( $contact_id, $mapping['ac_registration_tag'] );
-							}
-						}
-					} catch ( \Throwable $e ) {
-						// AC failure should not block deletion
-					}
-				}
-				Attendees::delete_by_id( $attendee_id );
-			}
-		}
-
-		wp_safe_redirect( admin_url( 'admin.php?page=checkee&action=attendees&id=' . $mapping_id . '&ck_msg=bulk_done' ) );
-		exit;
-	}
-
-	public static function handle_export_csv(): void {
-		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
-		$mapping_id = (int) ( $_GET['mapping_id'] ?? 0 );
-		if ( ! wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ?? '' ), 'checkee_export_attendees_' . $mapping_id ) ) wp_die( 'Security check failed' );
-
-		$mapping   = Mappings::find_by_id( $mapping_id );
-		$attendees = Attendees::get_all_for_mapping( $mapping_id );
-		$filename  = 'checkee-' . sanitize_title( $mapping['event_name'] ?? 'attendees' ) . '-' . gmdate( 'Y-m-d' ) . '.csv';
-
-		nocache_headers();
-		header( 'Content-Type: text/csv; charset=utf-8' );
-		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
-
-		$out = fopen( 'php://output', 'w' );
-		fputcsv( $out, [ 'First Name', 'Last Name', 'Email', 'Status', 'Registered At' ], ',', '"', '\\' );
-		foreach ( $attendees as $a ) {
-			fputcsv( $out, [
-				$a['first_name'],
-				$a['last_name'],
-				$a['email'],
-				$a['status'],
-				$a['created_at'],
-			], ',', '"', '\\' );
-		}
-		fclose( $out );
 		exit;
 	}
 
@@ -1286,6 +1271,8 @@ class Admin {
 			}
 			if ( ! empty( $mapping['ac_registration_tag'] ) ) {
 				$ac->add_tag( $contact_id, $mapping['ac_registration_tag'] );
+				// Extra tag so walk-ins can be told apart from online registrations in AC.
+				$ac->add_tag( $contact_id, $mapping['ac_registration_tag'] . ' - Walk-in' );
 			}
 		} catch ( \Throwable $e ) {
 			// AC failure should not block the walk-in from being registered/checked in.
@@ -1382,6 +1369,44 @@ class Admin {
 		}
 	}
 
+	public static function ajax_search_attendees(): void {
+		try {
+			if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_search_attendees' ) ) {
+				wp_send_json_error( [ 'message' => 'Security check failed. Refresh the page and try again.' ] );
+				return;
+			}
+			if ( ! current_user_can( 'manage_options' ) ) {
+				wp_send_json_error( [ 'message' => 'Unauthorized.' ] );
+				return;
+			}
+
+			$mapping_id = (int) ( $_POST['mapping_id'] ?? 0 );
+			$search     = sanitize_text_field( wp_unslash( $_POST['s'] ?? '' ) );
+			$status     = sanitize_key( $_POST['status'] ?? '' );
+			if ( ! Mappings::find_by_id( $mapping_id ) ) {
+				wp_send_json_error( [ 'message' => 'Event not found.' ] );
+				return;
+			}
+
+			$limit       = 50;
+			$total_match = Attendees::count_for_mapping( $mapping_id, $search, $status );
+			$attendees   = Attendees::get_for_mapping( $mapping_id, $limit, 0, $search, $status );
+
+			$rows = '';
+			foreach ( $attendees as $a ) {
+				$rows .= self::render_attendee_row( $a, $mapping_id );
+			}
+
+			wp_send_json_success( [
+				'rows'        => $rows,
+				'total_match' => $total_match,
+				'shown'       => count( $attendees ),
+			] );
+		} catch ( \Throwable $e ) {
+			wp_send_json_error( [ 'message' => 'Error: ' . $e->getMessage() ] );
+		}
+	}
+
 	public static function ajax_sync_ac_attendance(): void {
 		try {
 			if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_sync_ac_attendance' ) ) {
@@ -1400,7 +1425,7 @@ class Admin {
 				return;
 			}
 			if ( empty( $mapping['ac_registration_tag'] ) && empty( $mapping['ac_checkin_tag'] ) ) {
-				wp_send_json_error( [ 'message' => 'This event has no Registration or Check-In Tag configured. Set one under Edit Event first.' ] );
+				wp_send_json_error( [ 'message' => 'This event has no Registration or Check-In Tag configured. Set one under Edit event first.' ] );
 				return;
 			}
 
@@ -1501,7 +1526,6 @@ class Admin {
 			'created'          => [ 'success', 'Event created.' ],
 			'deleted'          => [ 'info',    'Event deleted.' ],
 			'attendee_removed' => [ 'success', 'Registration removed.' ],
-			'bulk_done'        => [ 'success', 'Bulk action completed.' ],
 			'walkin_added'     => [ 'success', 'Walk-in registered and checked in.' ],
 			'walkin_checked_in' => [ 'success', 'Existing registration found — checked in.' ],
 			'walkin_already'   => [ 'info',    'Already registered and checked in.' ],
@@ -1511,6 +1535,15 @@ class Admin {
 		if ( ! isset( $map[ $msg ] ) ) return;
 		[ $type, $text ] = $map[ $msg ];
 		$icon = 'error' === $type ? 'bi-x-circle-fill' : ( 'info' === $type ? 'bi-info-circle-fill' : 'bi-check-circle-fill' );
-		echo '<div class="ck-notice ck-notice--' . esc_attr( $type ) . '"><i class="bi ' . esc_attr( $icon ) . '"></i> ' . esc_html( $text ) . '</div>';
+		echo '<div class="ck-notice ck-notice--' . esc_attr( $type ) . '" id="ck-notice"><i class="bi ' . esc_attr( $icon ) . '"></i> ' . esc_html( $text ) . '</div>';
+		echo '<script>(function(){
+			var el = document.getElementById("ck-notice");
+			if (!el) return;
+			setTimeout(function(){
+				el.style.transition = "opacity .4s ease";
+				el.style.opacity = "0";
+				setTimeout(function(){ el.remove(); }, 400);
+			}, 4000);
+		})();</script>';
 	}
 }

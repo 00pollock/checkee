@@ -3,7 +3,7 @@
  * Plugin Name:       Checkee
  * Plugin URI:        https://github.com/00pollock/checkee
  * Description:       Post-registration operations for WordPress events: attendee management, QR check-in, and ActiveCampaign tag sync. Works with Kadence Forms.
- * Version:           1.3.1
+ * Version:           1.3.2
  * Requires at least: 6.3
  * Requires PHP:      8.1
  * Author:            George Okanga
@@ -13,7 +13,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'CHECKEE_VERSION', '1.3.1' );
+define( 'CHECKEE_VERSION', '1.3.2' );
 define( 'CHECKEE_DIR',     plugin_dir_path( __FILE__ ) );
 define( 'CHECKEE_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -175,10 +175,7 @@ function checkee_boot(): void {
 		add_action( 'admin_post_checkee_create_event',       [ Admin::class, 'handle_create_event' ] );
 		add_action( 'admin_post_checkee_update_event',       [ Admin::class, 'handle_update_event' ] );
 		add_action( 'admin_post_checkee_delete_event',       [ Admin::class, 'handle_delete_event' ] );
-		add_action( 'admin_post_checkee_admin_checkin',        [ Admin::class, 'handle_checkin_post' ] );
 		add_action( 'admin_post_checkee_delete_attendee',      [ Admin::class, 'handle_delete_attendee' ] );
-		add_action( 'admin_post_checkee_bulk_attendee_action', [ Admin::class, 'handle_bulk_attendee_action' ] );
-		add_action( 'admin_post_checkee_export_attendees',     [ Admin::class, 'handle_export_csv' ] );
 		add_action( 'admin_post_checkee_add_walkin',           [ Admin::class, 'handle_add_walkin' ] );
 		add_action( 'admin_post_checkee_save_settings',      [ Admin::class, 'handle_save_settings' ] );
 		add_action( 'admin_post_checkee_save_email',         [ Admin::class, 'handle_save_email' ] );
@@ -187,5 +184,7 @@ function checkee_boot(): void {
 		add_action( 'wp_ajax_checkee_scan_checkin',          [ Admin::class, 'ajax_scan_checkin' ] );
 		add_action( 'wp_ajax_checkee_sync_ac_attendance',    [ Admin::class, 'ajax_sync_ac_attendance' ] );
 		add_action( 'wp_ajax_checkee_resend_qr_batch',       [ Admin::class, 'ajax_resend_qr_batch' ] );
+		add_action( 'wp_ajax_checkee_search_attendees',      [ Admin::class, 'ajax_search_attendees' ] );
+		add_action( 'wp_ajax_checkee_manual_checkin',        [ Admin::class, 'ajax_manual_checkin' ] );
 	}
 }

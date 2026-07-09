@@ -54,7 +54,7 @@ class Checkin {
 			return [ 'success' => false, 'message' => __( 'Attendee not found.', 'checkee' ) ];
 		}
 
-		$new_status = $action === 'in' ? 'checked_in' : 'checked_out';
+		$new_status = $action === 'in' ? 'checked_in' : 'registered';
 		$updated    = Attendees::update_status( (int) $attendee['id'], $new_status );
 
 		if ( ! $updated ) {
