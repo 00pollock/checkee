@@ -118,6 +118,38 @@ class Attendees {
 		return $counts;
 	}
 
+	/**
+	 * Reconcile local check-in status against ActiveCampaign: the tag is the source of truth.
+	 * Tag present in AC  -> local status becomes 'checked_in' (even if it was 'checked_out').
+	 * Tag absent from AC -> local status becomes 'registered' if it was 'checked_in'.
+	 * Does not touch AC — this is a one-way pull, never pushes tags back.
+	 */
+	public static function sync_checkin_status( int $mapping_id, array $checked_in_emails ): array {
+		$checked_in_emails = array_flip( array_map( 'strtolower', $checked_in_emails ) );
+		$attendees          = self::get_all_for_mapping( $mapping_id );
+
+		$promoted  = 0;
+		$demoted   = 0;
+		$unchanged = 0;
+
+		foreach ( $attendees as $a ) {
+			$should_be_in = isset( $checked_in_emails[ strtolower( $a['email'] ) ] );
+			$is_in        = 'checked_in' === $a['status'];
+
+			if ( $should_be_in && ! $is_in ) {
+				self::update_status( (int) $a['id'], 'checked_in' );
+				$promoted++;
+			} elseif ( ! $should_be_in && $is_in ) {
+				self::update_status( (int) $a['id'], 'registered' );
+				$demoted++;
+			} else {
+				$unchanged++;
+			}
+		}
+
+		return [ 'promoted' => $promoted, 'demoted' => $demoted, 'unchanged' => $unchanged ];
+	}
+
 	public static function update_status( int $id, string $status ): bool {
 		global $wpdb;
 		$attendee = self::find_by_id( $id );

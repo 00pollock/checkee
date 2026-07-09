@@ -156,6 +156,7 @@ function checkee_boot(): void {
 		if ( $id ) {
 			$attendee = Attendees::find_by_id( $id );
 			if ( $attendee ) {
+				Checkin::apply_registration_tag( $attendee, $mapping );
 				Email::send_confirmation( $attendee, $mapping );
 			}
 		}
@@ -178,10 +179,13 @@ function checkee_boot(): void {
 		add_action( 'admin_post_checkee_delete_attendee',      [ Admin::class, 'handle_delete_attendee' ] );
 		add_action( 'admin_post_checkee_bulk_attendee_action', [ Admin::class, 'handle_bulk_attendee_action' ] );
 		add_action( 'admin_post_checkee_export_attendees',     [ Admin::class, 'handle_export_csv' ] );
+		add_action( 'admin_post_checkee_add_walkin',           [ Admin::class, 'handle_add_walkin' ] );
 		add_action( 'admin_post_checkee_save_settings',      [ Admin::class, 'handle_save_settings' ] );
 		add_action( 'admin_post_checkee_save_email',         [ Admin::class, 'handle_save_email' ] );
 		add_action( 'wp_ajax_checkee_test_ac',               [ Admin::class, 'ajax_test_ac' ] );
 		add_action( 'wp_ajax_checkee_get_form_fields',       [ Admin::class, 'ajax_get_form_fields' ] );
 		add_action( 'wp_ajax_checkee_scan_checkin',          [ Admin::class, 'ajax_scan_checkin' ] );
+		add_action( 'wp_ajax_checkee_sync_ac_attendance',    [ Admin::class, 'ajax_sync_ac_attendance' ] );
+		add_action( 'wp_ajax_checkee_resend_qr_batch',       [ Admin::class, 'ajax_resend_qr_batch' ] );
 	}
 }

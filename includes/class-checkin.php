@@ -96,6 +96,25 @@ class Checkin {
 		);
 	}
 
+	/**
+	 * Applies the event's registration tag on sign-up. Find-only — assumes the contact already
+	 * exists in AC (Kadence's own AC integration creates it as part of the form submission).
+	 * Walk-ins go through a separate find-or-create path since they never touch Kadence.
+	 */
+	public static function apply_registration_tag( array $attendee, array $mapping ): void {
+		if ( empty( $mapping['ac_registration_tag'] ) ) {
+			return;
+		}
+		$ac = new ActiveCampaign();
+		if ( ! $ac->is_configured() ) {
+			return;
+		}
+		$contact_id = $ac->find_contact( $attendee['email'] );
+		if ( $contact_id ) {
+			$ac->add_tag( $contact_id, $mapping['ac_registration_tag'] );
+		}
+	}
+
 	private static function sync_ac_tags( array $attendee, string $action ): void {
 		$ac = new ActiveCampaign();
 		if ( ! $ac->is_configured() ) {

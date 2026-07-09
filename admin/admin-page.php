@@ -404,7 +404,8 @@ class Admin {
 		$attendees   = Attendees::get_for_mapping( $mapping_id, $per_page, $offset, $search );
 		$checked     = $stats['checked_in'];
 
-		$base_url = admin_url( 'admin.php?page=checkee&action=attendees&id=' . $mapping_id );
+		$base_url        = admin_url( 'admin.php?page=checkee&action=attendees&id=' . $mapping_id );
+		$ac_sync_ready   = ( new ActiveCampaign() )->is_configured() && ! empty( $mapping['ac_checkin_tag'] );
 		?>
 		<div class="ck-wrap">
 			<?php self::render_notice(); ?>
@@ -416,6 +417,19 @@ class Admin {
 					<h1><?php echo esc_html( $mapping['event_name'] ); ?></h1>
 				</div>
 				<div class="ck-action-group">
+					<button type="button" id="ck-walkin-toggle" class="ck-btn ck-btn-primary">
+						<i class="bi bi-person-plus-fill"></i> Add Walk-in
+					</button>
+					<?php if ( $ac_sync_ready ) : ?>
+					<button type="button" id="ck-sync-ac" class="ck-btn ck-btn-outline" data-mapping-id="<?php echo (int) $mapping_id; ?>" data-nonce="<?php echo esc_attr( wp_create_nonce( 'checkee_sync_ac_attendance' ) ); ?>">
+						<i class="bi bi-arrow-repeat"></i> Sync Attendees
+					</button>
+					<?php endif; ?>
+					<?php if ( $stats['total'] > 0 ) : ?>
+					<button type="button" id="ck-resend-qr" class="ck-btn ck-btn-outline" data-mapping-id="<?php echo (int) $mapping_id; ?>" data-nonce="<?php echo esc_attr( wp_create_nonce( 'checkee_resend_qr_batch' ) ); ?>" data-total="<?php echo (int) $stats['total']; ?>">
+						<i class="bi bi-envelope-fill"></i> Resend All QR Codes
+					</button>
+					<?php endif; ?>
 					<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=checkee_export_attendees&mapping_id=' . $mapping_id ), 'checkee_export_attendees_' . $mapping_id ) ); ?>" class="ck-btn ck-btn-outline">
 						<i class="bi bi-download"></i> Export CSV
 					</a>
@@ -424,6 +438,160 @@ class Admin {
 					</a>
 				</div>
 			</div>
+
+			<div class="ck-card" id="ck-walkin-form-card" hidden>
+				<h2 class="ck-card__title"><i class="bi bi-person-plus-fill"></i> Register + Check In</h2>
+				<p class="ck-card__desc">For attendees who show up without registering online. Tags them with both this event's registration and check-in ActiveCampaign tags — creates the AC contact if one doesn't already exist.</p>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<?php wp_nonce_field( 'checkee_add_walkin_' . $mapping_id, '_wpnonce' ); ?>
+					<input type="hidden" name="action" value="checkee_add_walkin">
+					<input type="hidden" name="mapping_id" value="<?php echo (int) $mapping_id; ?>">
+					<div class="ck-field-row">
+						<div class="ck-field">
+							<label for="walkin_first_name">First Name</label>
+							<input type="text" id="walkin_first_name" name="first_name" required>
+						</div>
+						<div class="ck-field">
+							<label for="walkin_last_name">Last Name</label>
+							<input type="text" id="walkin_last_name" name="last_name" required>
+						</div>
+					</div>
+					<div class="ck-field">
+						<label for="walkin_email">Email</label>
+						<input type="email" id="walkin_email" name="email" required>
+					</div>
+					<div class="ck-inline-actions">
+						<button type="submit" class="ck-btn ck-btn-primary">
+							<i class="bi bi-check-lg"></i> Register &amp; Check In
+						</button>
+						<button type="button" id="ck-walkin-cancel" class="ck-btn ck-btn-ghost">Cancel</button>
+					</div>
+				</form>
+			</div>
+
+			<script>
+			(function(){
+				var toggle = document.getElementById('ck-walkin-toggle');
+				var card   = document.getElementById('ck-walkin-form-card');
+				var cancel = document.getElementById('ck-walkin-cancel');
+				if (!toggle || !card) return;
+
+				toggle.addEventListener('click', function(){
+					card.hidden = !card.hidden;
+					if (!card.hidden) {
+						var first = document.getElementById('walkin_first_name');
+						if (first) first.focus();
+					}
+				});
+				if (cancel) {
+					cancel.addEventListener('click', function(){
+						card.hidden = true;
+						card.querySelector('form').reset();
+					});
+				}
+			})();
+			</script>
+			<?php if ( $ac_sync_ready || $stats['total'] > 0 ) : ?>
+			<div id="ck-action-result" class="ck-list-meta" style="text-align:right;margin-top:-20px;"></div>
+			<?php endif; ?>
+
+			<?php if ( $ac_sync_ready ) : ?>
+			<script>
+			(function(){
+				var btn    = document.getElementById('ck-sync-ac');
+				var result = document.getElementById('ck-action-result');
+				if (!btn) return;
+				btn.addEventListener('click', function(){
+					btn.disabled = true;
+					var original = btn.innerHTML;
+					btn.innerHTML = '<i class="bi bi-arrow-repeat ck-spin"></i> Syncing…';
+					result.textContent = '';
+
+					fetch(ajaxurl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+						body: 'action=checkee_sync_ac_attendance'
+							+ '&mapping_id=' + encodeURIComponent(btn.getAttribute('data-mapping-id'))
+							+ '&_wpnonce=' + encodeURIComponent(btn.getAttribute('data-nonce'))
+					})
+					.then(function(r){ return r.json(); })
+					.then(function(data){
+						btn.disabled = false;
+						btn.innerHTML = original;
+						if (data.success) {
+							result.textContent = data.data.message;
+							setTimeout(function(){ window.location.reload(); }, 900);
+						} else {
+							result.textContent = (data.data && data.data.message) ? data.data.message : 'Sync failed.';
+						}
+					})
+					.catch(function(){
+						btn.disabled = false;
+						btn.innerHTML = original;
+						result.textContent = 'Request failed. Check your connection and try again.';
+					});
+				});
+			})();
+			</script>
+			<?php endif; ?>
+
+			<?php if ( $stats['total'] > 0 ) : ?>
+			<script>
+			(function(){
+				var btn    = document.getElementById('ck-resend-qr');
+				var result = document.getElementById('ck-action-result');
+				if (!btn) return;
+
+				var BATCH_DELAY_MS = 400;
+
+				function sendBatch(offset) {
+					return fetch(ajaxurl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+						body: 'action=checkee_resend_qr_batch'
+							+ '&mapping_id=' + encodeURIComponent(btn.getAttribute('data-mapping-id'))
+							+ '&offset=' + offset
+							+ '&_wpnonce=' + encodeURIComponent(btn.getAttribute('data-nonce'))
+					}).then(function(r){ return r.json(); });
+				}
+
+				function runFrom(offset, sentSoFar) {
+					sendBatch(offset).then(function(data){
+						if (!data.success) {
+							btn.disabled = false;
+							btn.innerHTML = '<i class="bi bi-envelope-fill"></i> Resend All QR Codes';
+							result.textContent = (data.data && data.data.message) ? data.data.message : 'Resend failed after ' + sentSoFar + ' sent.';
+							return;
+						}
+						sentSoFar += data.data.sent;
+						var total = data.data.total;
+						result.textContent = 'Resent ' + sentSoFar + '/' + total + '…';
+
+						if (data.data.done) {
+							btn.disabled = false;
+							btn.innerHTML = '<i class="bi bi-envelope-fill"></i> Resend All QR Codes';
+							result.textContent = 'Done — resent QR code emails to ' + sentSoFar + ' of ' + total + ' attendees.';
+						} else {
+							setTimeout(function(){ runFrom(data.data.next_offset, sentSoFar); }, BATCH_DELAY_MS);
+						}
+					}).catch(function(){
+						btn.disabled = false;
+						btn.innerHTML = '<i class="bi bi-envelope-fill"></i> Resend All QR Codes';
+						result.textContent = 'Request failed after ' + sentSoFar + ' sent. Check your connection and try again.';
+					});
+				}
+
+				btn.addEventListener('click', function(){
+					var total = btn.getAttribute('data-total');
+					if (!confirm('Resend the QR code email to all ' + total + ' registered attendees?')) return;
+					btn.disabled = true;
+					btn.innerHTML = '<i class="bi bi-arrow-repeat ck-spin"></i> Resending…';
+					result.textContent = 'Resent 0/' + total + '…';
+					runFrom(0, 0);
+				});
+			})();
+			</script>
+			<?php endif; ?>
 
 			<!-- Stats row (always true totals, independent of pagination/search) -->
 			<div class="ck-stats-row">
@@ -782,7 +950,7 @@ class Admin {
 				<div class="ck-settings-main">
 					<div class="ck-card">
 						<h2 class="ck-card__title"><i class="bi bi-lightning-charge-fill"></i> ActiveCampaign</h2>
-						<p class="ck-card__desc">Connect your ActiveCampaign account. Checkee will add and remove tags from existing contacts on check-in and check-out. It never creates new contacts.</p>
+						<p class="ck-card__desc">Connect your ActiveCampaign account. Checkee tags contacts on registration, check-in, and check-out. Walk-ins create a new AC contact if one doesn't already exist; everyone else must already exist in AC to be tagged.</p>
 
 						<div class="ck-field">
 							<label for="ac_url">Account URL</label>
@@ -813,8 +981,8 @@ class Admin {
 					<div class="ck-card ck-card--info">
 						<h3><i class="bi bi-info-circle-fill"></i> How it works</h3>
 						<ul class="ck-info-list">
-							<li>Checkee <strong>never creates</strong> AC contacts</li>
-							<li>It finds existing contacts by email address</li>
+							<li>On <strong>registration</strong>: adds the registration tag (finds the contact by email — doesn't create one)</li>
+							<li>On <strong>walk-in</strong>: creates the AC contact if it doesn't exist yet, then tags it</li>
 							<li>On <strong>check-in</strong>: adds the configured tag</li>
 							<li>On <strong>check-out</strong>: removes check-in tag, adds check-out tag</li>
 							<li>Tag names are configured per-event</li>
@@ -1034,7 +1202,7 @@ class Admin {
 		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
 
 		$out = fopen( 'php://output', 'w' );
-		fputcsv( $out, [ 'First Name', 'Last Name', 'Email', 'Status', 'Registered At' ] );
+		fputcsv( $out, [ 'First Name', 'Last Name', 'Email', 'Status', 'Registered At' ], ',', '"', '\\' );
 		foreach ( $attendees as $a ) {
 			fputcsv( $out, [
 				$a['first_name'],
@@ -1042,10 +1210,85 @@ class Admin {
 				$a['email'],
 				$a['status'],
 				$a['created_at'],
-			] );
+			], ',', '"', '\\' );
 		}
 		fclose( $out );
 		exit;
+	}
+
+	public static function handle_add_walkin(): void {
+		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
+		$mapping_id = (int) ( $_POST['mapping_id'] ?? 0 );
+		if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_add_walkin_' . $mapping_id ) ) wp_die( 'Security check failed' );
+
+		$redirect_base = admin_url( 'admin.php?page=checkee&action=attendees&id=' . $mapping_id );
+
+		$mapping = Mappings::find_by_id( $mapping_id );
+		if ( ! $mapping ) {
+			wp_die( 'Event not found.' );
+		}
+
+		$email      = sanitize_email( wp_unslash( $_POST['email'] ?? '' ) );
+		$first_name = sanitize_text_field( wp_unslash( $_POST['first_name'] ?? '' ) );
+		$last_name  = sanitize_text_field( wp_unslash( $_POST['last_name'] ?? '' ) );
+
+		if ( ! $email || ! is_email( $email ) ) {
+			wp_safe_redirect( $redirect_base . '&ck_msg=walkin_invalid' );
+			exit;
+		}
+
+		$attendee = Attendees::find_by_email_event( $email, $mapping_id );
+
+		if ( ! $attendee ) {
+			$id = Attendees::create( [
+				'event_mapping_id' => $mapping_id,
+				'event_name'       => $mapping['event_name'],
+				'first_name'       => $first_name,
+				'last_name'        => $last_name,
+				'email'            => $email,
+			] );
+			if ( ! $id ) {
+				wp_safe_redirect( $redirect_base . '&ck_msg=walkin_error' );
+				exit;
+			}
+			$attendee = Attendees::find_by_id( $id );
+			$ck_msg   = 'walkin_added';
+		} else {
+			$ck_msg = 'checked_in' === $attendee['status'] ? 'walkin_already' : 'walkin_checked_in';
+		}
+
+		// Ensure the AC contact exists (and is tagged registered) before Checkin::process applies the
+		// check-in tag — walk-ins never touched Kadence, so there's no guarantee AC already knows them.
+		self::sync_walkin_to_ac( $attendee, $mapping );
+
+		if ( 'checked_in' !== $attendee['status'] ) {
+			Checkin::process( $attendee['qr_token'], 'in' );
+		}
+
+		wp_safe_redirect( $redirect_base . '&ck_msg=' . $ck_msg );
+		exit;
+	}
+
+	/** Finds-or-creates the AC contact for a walk-in and applies the event's registration tag. */
+	private static function sync_walkin_to_ac( array $attendee, array $mapping ): void {
+		try {
+			$ac = new ActiveCampaign();
+			if ( ! $ac->is_configured() ) {
+				return;
+			}
+			if ( empty( $mapping['ac_registration_tag'] ) && empty( $mapping['ac_checkin_tag'] ) ) {
+				return;
+			}
+			$contact_id = $ac->find_or_create_contact( $attendee['email'], $attendee['first_name'], $attendee['last_name'] );
+			if ( ! $contact_id ) {
+				return;
+			}
+			if ( ! empty( $mapping['ac_registration_tag'] ) ) {
+				$ac->add_tag( $contact_id, $mapping['ac_registration_tag'] );
+			}
+		} catch ( \Throwable $e ) {
+			// AC failure should not block the walk-in from being registered/checked in.
+		}
 	}
 
 	public static function handle_save_settings(): void {
@@ -1091,6 +1334,99 @@ class Admin {
 			}
 		} catch ( \Throwable $e ) {
 			wp_send_json_error( [ 'message' => 'PHP error: ' . $e->getMessage() ] );
+		}
+	}
+
+	public static function ajax_resend_qr_batch(): void {
+		try {
+			if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_resend_qr_batch' ) ) {
+				wp_send_json_error( [ 'message' => 'Security check failed. Refresh the page and try again.' ] );
+				return;
+			}
+			if ( ! current_user_can( 'manage_options' ) ) {
+				wp_send_json_error( [ 'message' => 'Unauthorized.' ] );
+				return;
+			}
+
+			$mapping_id = (int) ( $_POST['mapping_id'] ?? 0 );
+			$offset     = max( 0, (int) ( $_POST['offset'] ?? 0 ) );
+			$batch_size = 10;
+
+			$mapping = Mappings::find_by_id( $mapping_id );
+			if ( ! $mapping ) {
+				wp_send_json_error( [ 'message' => 'Event not found.' ] );
+				return;
+			}
+
+			$total     = Attendees::status_counts( $mapping_id )['total'];
+			$attendees = Attendees::get_for_mapping( $mapping_id, $batch_size, $offset );
+
+			$sent = 0;
+			foreach ( $attendees as $a ) {
+				if ( Email::send_confirmation( $a, $mapping ) ) {
+					$sent++;
+				}
+			}
+
+			$next_offset = $offset + count( $attendees );
+
+			wp_send_json_success( [
+				'sent'        => $sent,
+				'next_offset' => $next_offset,
+				'total'       => $total,
+				'done'        => $next_offset >= $total || 0 === count( $attendees ),
+			] );
+		} catch ( \Throwable $e ) {
+			wp_send_json_error( [ 'message' => 'Error: ' . $e->getMessage() ] );
+		}
+	}
+
+	public static function ajax_sync_ac_attendance(): void {
+		try {
+			if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_sync_ac_attendance' ) ) {
+				wp_send_json_error( [ 'message' => 'Security check failed. Refresh the page and try again.' ] );
+				return;
+			}
+			if ( ! current_user_can( 'manage_options' ) ) {
+				wp_send_json_error( [ 'message' => 'Unauthorized.' ] );
+				return;
+			}
+
+			$mapping_id = (int) ( $_POST['mapping_id'] ?? 0 );
+			$mapping    = Mappings::find_by_id( $mapping_id );
+			if ( ! $mapping ) {
+				wp_send_json_error( [ 'message' => 'Event not found.' ] );
+				return;
+			}
+			if ( empty( $mapping['ac_checkin_tag'] ) ) {
+				wp_send_json_error( [ 'message' => 'This event has no Check-In Tag configured. Set one under Edit Event first.' ] );
+				return;
+			}
+
+			$ac = new ActiveCampaign();
+			if ( ! $ac->is_configured() ) {
+				wp_send_json_error( [ 'message' => 'ActiveCampaign is not connected. Configure it under Settings → Integrations.' ] );
+				return;
+			}
+
+			$emails = $ac->get_emails_by_tag( $mapping['ac_checkin_tag'] );
+			if ( null === $emails ) {
+				wp_send_json_error( [ 'message' => 'Could not reach ActiveCampaign. Try again in a moment.' ] );
+				return;
+			}
+
+			$result = Attendees::sync_checkin_status( $mapping_id, $emails );
+
+			wp_send_json_success( [
+				'message' => sprintf(
+					'Synced: %d checked in, %d un-checked-in, %d already matched.',
+					$result['promoted'],
+					$result['demoted'],
+					$result['unchanged']
+				),
+			] );
+		} catch ( \Throwable $e ) {
+			wp_send_json_error( [ 'message' => 'Error: ' . $e->getMessage() ] );
 		}
 	}
 
@@ -1150,9 +1486,15 @@ class Admin {
 			'deleted'          => [ 'info',    'Event deleted.' ],
 			'attendee_removed' => [ 'success', 'Registration removed.' ],
 			'bulk_done'        => [ 'success', 'Bulk action completed.' ],
+			'walkin_added'     => [ 'success', 'Walk-in registered and checked in.' ],
+			'walkin_checked_in' => [ 'success', 'Existing registration found — checked in.' ],
+			'walkin_already'   => [ 'info',    'Already registered and checked in.' ],
+			'walkin_invalid'   => [ 'error',   'Enter a valid email address.' ],
+			'walkin_error'     => [ 'error',   'Could not add walk-in. Try again.' ],
 		];
 		if ( ! isset( $map[ $msg ] ) ) return;
 		[ $type, $text ] = $map[ $msg ];
-		echo '<div class="ck-notice ck-notice--' . esc_attr( $type ) . '"><i class="bi bi-check-circle-fill"></i> ' . esc_html( $text ) . '</div>';
+		$icon = 'error' === $type ? 'bi-x-circle-fill' : ( 'info' === $type ? 'bi-info-circle-fill' : 'bi-check-circle-fill' );
+		echo '<div class="ck-notice ck-notice--' . esc_attr( $type ) . '"><i class="bi ' . esc_attr( $icon ) . '"></i> ' . esc_html( $text ) . '</div>';
 	}
 }

@@ -27,6 +27,21 @@ class ActiveCampaign {
 		return ! empty( $contacts ) ? (int) $contacts[0]->id : null;
 	}
 
+	/** Finds a contact by email, or creates one if none exists. Uses AC's upsert endpoint, so it's safe to call even if the contact might already exist. */
+	public function find_or_create_contact( string $email, string $first_name = '', string $last_name = '' ): ?int {
+		$response = $this->request( 'POST', '/contact/sync', [
+			'contact' => array_filter( [
+				'email'     => $email,
+				'firstName' => $first_name,
+				'lastName'  => $last_name,
+			] ),
+		] );
+		if ( is_wp_error( $response ) ) {
+			return null;
+		}
+		return isset( $response->contact->id ) ? (int) $response->contact->id : null;
+	}
+
 	public function add_tag( int $contact_id, string $tag_name ): bool {
 		$tag_id = $this->get_or_create_tag( $tag_name );
 		if ( ! $tag_id ) {
@@ -53,6 +68,56 @@ class ActiveCampaign {
 			}
 		}
 		return true;
+	}
+
+	/**
+	 * Emails of every contact currently holding the given tag in AC.
+	 * Returns null on a hard API failure (caller must not treat that as "nobody has the tag").
+	 */
+	public function get_emails_by_tag( string $tag_name ): ?array {
+		$tag_response = $this->request( 'GET', '/tags', [], [ 'search' => $tag_name ] );
+		if ( is_wp_error( $tag_response ) ) {
+			return null;
+		}
+
+		$tag_id = null;
+		foreach ( $tag_response->tags ?? [] as $tag ) {
+			if ( strtolower( $tag->tag ) === strtolower( $tag_name ) ) {
+				$tag_id = (int) $tag->id;
+				break;
+			}
+		}
+		if ( ! $tag_id ) {
+			return []; // Tag genuinely doesn't exist in AC yet — nobody has it.
+		}
+
+		$emails = [];
+		$offset = 0;
+		$limit  = 100;
+		$total  = null;
+
+		do {
+			$response = $this->request( 'GET', '/contacts', [], [
+				'filters[tagid]' => $tag_id,
+				'limit'          => $limit,
+				'offset'         => $offset,
+			] );
+			if ( is_wp_error( $response ) ) {
+				return null;
+			}
+
+			$contacts = $response->contacts ?? [];
+			foreach ( $contacts as $c ) {
+				if ( ! empty( $c->email ) ) {
+					$emails[] = strtolower( $c->email );
+				}
+			}
+
+			$total  ??= (int) ( $response->meta->total ?? count( $contacts ) );
+			$offset += $limit;
+		} while ( count( $contacts ) === $limit && $offset < $total );
+
+		return $emails;
 	}
 
 	public function test_connection(): array {
