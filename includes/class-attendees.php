@@ -119,6 +119,39 @@ class Attendees {
 	}
 
 	/**
+	 * Creates local attendee records for AC contacts holding the registration tag that don't
+	 * already have one (matched by email). Never touches or overwrites existing records —
+	 * this only fills gaps, e.g. a staging site whose local DB is a stale copy of production
+	 * while real registrations keep landing in AC via the live site.
+	 */
+	public static function backfill_from_ac( int $mapping_id, string $event_name, array $contacts ): array {
+		$created = 0;
+		$skipped = 0;
+
+		foreach ( $contacts as $c ) {
+			if ( empty( $c['email'] ) ) {
+				continue;
+			}
+			if ( self::find_by_email_event( $c['email'], $mapping_id ) ) {
+				$skipped++;
+				continue;
+			}
+			$id = self::create( [
+				'event_mapping_id' => $mapping_id,
+				'event_name'       => $event_name,
+				'first_name'       => $c['first_name'] ?? '',
+				'last_name'        => $c['last_name'] ?? '',
+				'email'            => $c['email'],
+			] );
+			if ( $id ) {
+				$created++;
+			}
+		}
+
+		return [ 'created' => $created, 'skipped' => $skipped ];
+	}
+
+	/**
 	 * Reconcile local check-in status against ActiveCampaign: the tag is the source of truth.
 	 * Tag present in AC  -> local status becomes 'checked_in' (even if it was 'checked_out').
 	 * Tag absent from AC -> local status becomes 'registered' if it was 'checked_in'.

@@ -71,10 +71,11 @@ class ActiveCampaign {
 	}
 
 	/**
-	 * Emails of every contact currently holding the given tag in AC.
+	 * Every contact currently holding the given tag in AC — email + name, not just email,
+	 * since callers use this both to reconcile status and to backfill missing local records.
 	 * Returns null on a hard API failure (caller must not treat that as "nobody has the tag").
 	 */
-	public function get_emails_by_tag( string $tag_name ): ?array {
+	public function get_contacts_by_tag( string $tag_name ): ?array {
 		$tag_response = $this->request( 'GET', '/tags', [], [ 'search' => $tag_name ] );
 		if ( is_wp_error( $tag_response ) ) {
 			return null;
@@ -91,16 +92,16 @@ class ActiveCampaign {
 			return []; // Tag genuinely doesn't exist in AC yet — nobody has it.
 		}
 
-		$emails = [];
-		$offset = 0;
-		$limit  = 100;
-		$total  = null;
+		$contacts_out = [];
+		$offset       = 0;
+		$limit        = 100;
+		$total        = null;
 
 		do {
 			$response = $this->request( 'GET', '/contacts', [], [
-				'filters[tagid]' => $tag_id,
-				'limit'          => $limit,
-				'offset'         => $offset,
+				'tagid'  => $tag_id,
+				'limit'  => $limit,
+				'offset' => $offset,
 			] );
 			if ( is_wp_error( $response ) ) {
 				return null;
@@ -109,7 +110,11 @@ class ActiveCampaign {
 			$contacts = $response->contacts ?? [];
 			foreach ( $contacts as $c ) {
 				if ( ! empty( $c->email ) ) {
-					$emails[] = strtolower( $c->email );
+					$contacts_out[] = [
+						'email'      => strtolower( $c->email ),
+						'first_name' => $c->firstName ?? '',
+						'last_name'  => $c->lastName ?? '',
+					];
 				}
 			}
 
@@ -117,7 +122,7 @@ class ActiveCampaign {
 			$offset += $limit;
 		} while ( count( $contacts ) === $limit && $offset < $total );
 
-		return $emails;
+		return $contacts_out;
 	}
 
 	public function test_connection(): array {

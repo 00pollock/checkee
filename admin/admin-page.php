@@ -405,7 +405,7 @@ class Admin {
 		$checked     = $stats['checked_in'];
 
 		$base_url        = admin_url( 'admin.php?page=checkee&action=attendees&id=' . $mapping_id );
-		$ac_sync_ready   = ( new ActiveCampaign() )->is_configured() && ! empty( $mapping['ac_checkin_tag'] );
+		$ac_sync_ready   = ( new ActiveCampaign() )->is_configured() && ( ! empty( $mapping['ac_registration_tag'] ) || ! empty( $mapping['ac_checkin_tag'] ) );
 		?>
 		<div class="ck-wrap">
 			<?php self::render_notice(); ?>
@@ -985,6 +985,7 @@ class Admin {
 							<li>On <strong>walk-in</strong>: creates the AC contact if it doesn't exist yet, then tags it</li>
 							<li>On <strong>check-in</strong>: adds the configured tag</li>
 							<li>On <strong>check-out</strong>: removes check-in tag, adds check-out tag</li>
+							<li><strong>Sync Attendees</strong>: pulls contacts tagged with the registration tag and creates any missing local record (useful if a site's local data has fallen behind AC), then reconciles check-in status against the check-in tag — AC is treated as the source of truth for both</li>
 							<li>Tag names are configured per-event</li>
 						</ul>
 					</div>
@@ -1398,8 +1399,8 @@ class Admin {
 				wp_send_json_error( [ 'message' => 'Event not found.' ] );
 				return;
 			}
-			if ( empty( $mapping['ac_checkin_tag'] ) ) {
-				wp_send_json_error( [ 'message' => 'This event has no Check-In Tag configured. Set one under Edit Event first.' ] );
+			if ( empty( $mapping['ac_registration_tag'] ) && empty( $mapping['ac_checkin_tag'] ) ) {
+				wp_send_json_error( [ 'message' => 'This event has no Registration or Check-In Tag configured. Set one under Edit Event first.' ] );
 				return;
 			}
 
@@ -1409,22 +1410,37 @@ class Admin {
 				return;
 			}
 
-			$emails = $ac->get_emails_by_tag( $mapping['ac_checkin_tag'] );
-			if ( null === $emails ) {
-				wp_send_json_error( [ 'message' => 'Could not reach ActiveCampaign. Try again in a moment.' ] );
-				return;
+			$messages = [];
+
+			// Step 1: backfill any AC-registered contact that has no local record yet.
+			if ( ! empty( $mapping['ac_registration_tag'] ) ) {
+				$registered_contacts = $ac->get_contacts_by_tag( $mapping['ac_registration_tag'] );
+				if ( null === $registered_contacts ) {
+					wp_send_json_error( [ 'message' => 'Could not reach ActiveCampaign to read the registration tag. Try again in a moment.' ] );
+					return;
+				}
+				$backfill   = Attendees::backfill_from_ac( $mapping_id, $mapping['event_name'], $registered_contacts );
+				$messages[] = sprintf( '%d new registration(s) added from AC', $backfill['created'] );
 			}
 
-			$result = Attendees::sync_checkin_status( $mapping_id, $emails );
-
-			wp_send_json_success( [
-				'message' => sprintf(
-					'Synced: %d checked in, %d un-checked-in, %d already matched.',
+			// Step 2: reconcile check-in status against the (now complete) attendee list.
+			if ( ! empty( $mapping['ac_checkin_tag'] ) ) {
+				$checkin_contacts = $ac->get_contacts_by_tag( $mapping['ac_checkin_tag'] );
+				if ( null === $checkin_contacts ) {
+					wp_send_json_error( [ 'message' => 'Could not reach ActiveCampaign to read the check-in tag. Try again in a moment.' ] );
+					return;
+				}
+				$checkin_emails = array_column( $checkin_contacts, 'email' );
+				$result         = Attendees::sync_checkin_status( $mapping_id, $checkin_emails );
+				$messages[]     = sprintf(
+					'%d checked in, %d un-checked-in, %d already matched',
 					$result['promoted'],
 					$result['demoted'],
 					$result['unchanged']
-				),
-			] );
+				);
+			}
+
+			wp_send_json_success( [ 'message' => 'Synced: ' . implode( '. ', $messages ) . '.' ] );
 		} catch ( \Throwable $e ) {
 			wp_send_json_error( [ 'message' => 'Error: ' . $e->getMessage() ] );
 		}
