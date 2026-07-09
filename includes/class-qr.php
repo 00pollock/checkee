@@ -11,9 +11,6 @@ class QR {
 	}
 
 	public static function get_checkin_url( string $token ): string {
-		if ( API::is_connected() ) {
-			return API::checkin_url( $token );
-		}
 		return home_url( '/checkee-checkin/' ) . '?token=' . rawurlencode( $token );
 	}
 

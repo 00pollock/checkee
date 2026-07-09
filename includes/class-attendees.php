@@ -7,7 +7,6 @@ defined( 'ABSPATH' ) || exit;
 class Attendees {
 
 	private const TTL_TOKEN = 900;
-	private const TTL_LIST  = 300;
 
 	public static function find_by_token( string $token ): ?array {
 		$cache_key = 'checkee_att_tok_' . $token;
@@ -74,30 +73,49 @@ class Attendees {
 			return false;
 		}
 
-		$id = (int) $wpdb->insert_id;
-		self::clear_list_cache( (int) ( $data['event_mapping_id'] ?? 0 ) );
-		return $id;
+		return (int) $wpdb->insert_id;
 	}
 
-	public static function get_for_mapping( int $mapping_id, int $limit = 200, int $offset = 0 ): array {
-		$cache_key = 'checkee_atts_m' . $mapping_id . "_{$limit}_{$offset}";
-		$cached    = get_transient( $cache_key );
-		if ( false !== $cached ) {
-			return $cached;
-		}
+	/** Paginated, optionally search-filtered attendee list for a mapping. Always ordered newest first. */
+	public static function get_for_mapping( int $mapping_id, int $limit = 50, int $offset = 0, string $search = '' ): array {
+		global $wpdb;
+		[ $where_sql, $params ] = self::build_search_where( $mapping_id, $search );
 
+		$sql    = "SELECT * FROM " . DB::table( 'attendees' ) . " WHERE {$where_sql} ORDER BY created_at DESC LIMIT %d OFFSET %d";
+		$params = array_merge( $params, [ $limit, $offset ] );
+
+		return $wpdb->get_results( $wpdb->prepare( $sql, $params ), ARRAY_A ) ?: [];
+	}
+
+	/** Full, unpaginated attendee list for a mapping — used for CSV export so nothing is ever silently truncated. */
+	public static function get_all_for_mapping( int $mapping_id ): array {
+		global $wpdb;
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT * FROM " . DB::table( 'attendees' ) . " WHERE event_mapping_id = %d ORDER BY created_at DESC",
+				$mapping_id
+			),
+			ARRAY_A
+		) ?: [];
+	}
+
+	/** True counts by status for a mapping, independent of any pagination. */
+	public static function status_counts( int $mapping_id ): array {
 		global $wpdb;
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT * FROM " . DB::table( 'attendees' ) . " WHERE event_mapping_id = %d ORDER BY created_at DESC LIMIT %d OFFSET %d",
-				$mapping_id, $limit, $offset
+				"SELECT status, COUNT(*) as c FROM " . DB::table( 'attendees' ) . " WHERE event_mapping_id = %d GROUP BY status",
+				$mapping_id
 			),
 			ARRAY_A
-		);
+		) ?: [];
 
-		$result = $rows ?: [];
-		set_transient( $cache_key, $result, self::TTL_LIST );
-		return $result;
+		$counts = [ 'total' => 0, 'registered' => 0, 'checked_in' => 0, 'checked_out' => 0 ];
+		foreach ( $rows as $row ) {
+			$counts[ $row['status'] ] = (int) $row['c'];
+			$counts['total']         += (int) $row['c'];
+		}
+		return $counts;
 	}
 
 	public static function update_status( int $id, string $status ): bool {
@@ -117,7 +135,6 @@ class Attendees {
 
 		if ( false !== $updated ) {
 			delete_transient( 'checkee_att_tok_' . $attendee['qr_token'] );
-			self::clear_list_cache( (int) ( $attendee['event_mapping_id'] ?? 0 ) );
 		}
 
 		return false !== $updated;
@@ -133,32 +150,16 @@ class Attendees {
 		$result = $wpdb->delete( DB::table( 'attendees' ), [ 'id' => $id ], [ '%d' ] );
 		if ( false !== $result ) {
 			delete_transient( 'checkee_att_tok_' . $attendee['qr_token'] );
-			self::clear_list_cache( (int) ( $attendee['event_mapping_id'] ?? 0 ) );
 		}
 		return false !== $result;
 	}
 
-	public static function search( string $query, int $mapping_id ): array {
+	/** Total attendees for a mapping, optionally filtered by the same search used by get_for_mapping(). */
+	public static function count_for_mapping( int $mapping_id, string $search = '' ): int {
 		global $wpdb;
-		$like = '%' . $wpdb->esc_like( $query ) . '%';
-
-		return $wpdb->get_results(
-			$wpdb->prepare(
-				"SELECT * FROM " . DB::table( 'attendees' ) . "
-				 WHERE event_mapping_id = %d
-				 AND (first_name LIKE %s OR last_name LIKE %s OR email LIKE %s)
-				 ORDER BY first_name ASC LIMIT 50",
-				$mapping_id, $like, $like, $like
-			),
-			ARRAY_A
-		) ?: [];
-	}
-
-	public static function count_for_mapping( int $mapping_id ): int {
-		global $wpdb;
-		return (int) $wpdb->get_var(
-			$wpdb->prepare( "SELECT COUNT(*) FROM " . DB::table( 'attendees' ) . " WHERE event_mapping_id = %d", $mapping_id )
-		);
+		[ $where_sql, $params ] = self::build_search_where( $mapping_id, $search );
+		$sql = "SELECT COUNT(*) FROM " . DB::table( 'attendees' ) . " WHERE {$where_sql}";
+		return (int) $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
 	}
 
 	/** Helper: full name from first + last. */
@@ -167,7 +168,18 @@ class Attendees {
 			?: ( $attendee['email'] ?? 'Unknown' );
 	}
 
-	private static function clear_list_cache( int $mapping_id ): void {
-		delete_transient( 'checkee_atts_m' . $mapping_id . '_200_0' );
+	/** Shared WHERE clause + params for mapping-scoped, optionally search-filtered attendee queries. */
+	private static function build_search_where( int $mapping_id, string $search ): array {
+		global $wpdb;
+		$where  = 'event_mapping_id = %d';
+		$params = [ $mapping_id ];
+
+		if ( '' !== $search ) {
+			$like    = '%' . $wpdb->esc_like( $search ) . '%';
+			$where  .= ' AND (first_name LIKE %s OR last_name LIKE %s OR email LIKE %s)';
+			$params  = array_merge( $params, [ $like, $like, $like ] );
+		}
+
+		return [ $where, $params ];
 	}
 }

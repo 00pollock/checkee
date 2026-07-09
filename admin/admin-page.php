@@ -49,8 +49,7 @@ class Admin {
 	}
 
 	private static function render_event_list(): void {
-		$mappings     = Mappings::get_all();
-		$is_connected = \Checkee\API::is_connected();
+		$mappings = Mappings::get_all();
 		?>
 		<div class="ck-wrap">
 			<?php self::render_notice(); ?>
@@ -79,49 +78,29 @@ class Admin {
 							<th>Form</th>
 							<th class="ck-th-center">Attendees</th>
 							<th class="ck-th-center">Status</th>
-							<?php if ( $is_connected ) : ?>
-							<th class="ck-th-center">Checkee</th>
-							<?php endif; ?>
 							<th class="ck-th-right">Actions</th>
 						</tr>
 					</thead>
 					<tbody>
 					<?php foreach ( $mappings as $m ) : ?>
-						<tr id="ck-row-<?php echo (int) $m['id']; ?>">
-							<td>
+						<tr>
+							<td data-label="Event">
 								<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=attendees&id=' . (int) $m['id'] ) ); ?>" class="ck-link-strong">
 									<?php echo esc_html( $m['event_name'] ); ?>
 								</a>
 							</td>
-							<td class="ck-text-muted"><?php echo esc_html( $m['form_title'] ?: '—' ); ?></td>
-							<td class="ck-th-center">
+							<td class="ck-text-muted" data-label="Form"><?php echo esc_html( $m['form_title'] ?: '—' ); ?></td>
+							<td class="ck-th-center" data-label="Attendees">
 								<span class="ck-count-badge"><?php echo (int) $m['attendee_count']; ?></span>
 							</td>
-							<td class="ck-th-center">
+							<td class="ck-th-center" data-label="Status">
 								<?php
 								$active = $m['status'] === 'active';
 								echo '<span class="ck-badge ' . ( $active ? 'ck-badge--green' : 'ck-badge--gray' ) . '">'
 									. ( $active ? 'Active' : 'Inactive' ) . '</span>';
 								?>
 							</td>
-							<?php if ( $is_connected ) : ?>
-							<td class="ck-th-center" id="ck-sync-cell-<?php echo (int) $m['id']; ?>">
-								<?php if ( ! empty( $m['checkee_event_id'] ) ) : ?>
-									<span class="ck-badge ck-badge--green" title="Linked to Checkee event #<?php echo (int) $m['checkee_event_id']; ?>">
-										<i class="bi bi-cloud-check-fill"></i> #<?php echo (int) $m['checkee_event_id']; ?>
-									</span>
-								<?php else : ?>
-									<button type="button"
-									        class="ck-btn ck-btn-sm ck-btn-outline js-push-event"
-									        data-mapping-id="<?php echo (int) $m['id']; ?>"
-									        data-nonce="<?php echo esc_attr( wp_create_nonce( 'checkee_push_event' ) ); ?>"
-									        title="Create this event in Checkee and link it">
-										<i class="bi bi-cloud-upload"></i> Push
-									</button>
-								<?php endif; ?>
-							</td>
-							<?php endif; ?>
-							<td class="ck-th-right">
+							<td class="ck-th-right" data-label="Actions">
 								<div class="ck-action-group">
 									<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=attendees&id=' . (int) $m['id'] ) ); ?>" class="ck-icon-btn" title="View Attendees">
 										<i class="bi bi-people"></i>
@@ -146,47 +125,6 @@ class Admin {
 			</div>
 			<?php endif; ?>
 		</div>
-
-		<?php if ( $is_connected ) : ?>
-		<script>
-		(function(){
-			document.querySelectorAll('.js-push-event').forEach(function(btn){
-				btn.addEventListener('click', function(){
-					var mappingId = this.dataset.mappingId;
-					var nonce     = this.dataset.nonce;
-					var cell      = document.getElementById('ck-sync-cell-' + mappingId);
-					btn.disabled = true;
-					btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Pushing…';
-
-					fetch(ajaxurl, {
-						method: 'POST',
-						headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-						body: new URLSearchParams({
-							action:     'checkee_push_event',
-							mapping_id: mappingId,
-							_wpnonce:   nonce
-						})
-					})
-					.then(r => r.json())
-					.then(function(data){
-						if (data.success) {
-							cell.innerHTML = '<span class="ck-badge ck-badge--green"><i class="bi bi-cloud-check-fill"></i> #' + data.data.checkee_event_id + '</span>';
-						} else {
-							btn.disabled = false;
-							btn.innerHTML = '<i class="bi bi-cloud-upload"></i> Push';
-							alert('Push failed: ' + (data.data && data.data.message ? data.data.message : 'Unknown error'));
-						}
-					})
-					.catch(function(){
-						btn.disabled = false;
-						btn.innerHTML = '<i class="bi bi-cloud-upload"></i> Push';
-						alert('Request failed. Check your connection.');
-					});
-				});
-			});
-		})();
-		</script>
-		<?php endif; ?>
 		<?php
 	}
 
@@ -209,12 +147,8 @@ class Admin {
 			'ac_registration_tag' => $mapping['ac_registration_tag'] ?? '',
 			'ac_checkin_tag'      => $mapping['ac_checkin_tag']      ?? '',
 			'ac_checkout_tag'     => $mapping['ac_checkout_tag']     ?? '',
-			'checkee_event_id'    => $mapping['checkee_event_id']    ?? '',
 			'status'              => $mapping['status']              ?? 'active',
 		];
-
-		// In connected mode, fetch Checkee events for the dropdown.
-		$checkee_events = \Checkee\API::is_connected() ? \Checkee\API::get_events() : [];
 
 		// Pre-load fields for current form (edit mode)
 		$preloaded_fields = [];
@@ -270,30 +204,6 @@ class Admin {
 								<?php endif; ?>
 								<p class="ck-field-note">Submissions from this form will create attendee records for this event.</p>
 							</div>
-							<?php if ( ! empty( $checkee_events ) ) : ?>
-							<div class="ck-field">
-								<label for="checkee_event_id">Checkee Event <small style="font-weight:normal;color:#6b7280;">(connected)</small></label>
-								<select id="checkee_event_id" name="checkee_event_id">
-									<option value="">— Standalone (local only) —</option>
-									<?php foreach ( $checkee_events as $ce ) : ?>
-									<option value="<?php echo (int) ( $ce['id'] ?? 0 ); ?>"
-									        <?php selected( (string) $v['checkee_event_id'], (string) ( $ce['id'] ?? '' ) ); ?>>
-										<?php echo esc_html( $ce['name'] ?? ( 'Event #' . ( $ce['id'] ?? '?' ) ) ); ?>
-										<?php if ( ! empty( $ce['event_date'] ) ) echo ' — ' . esc_html( $ce['event_date'] ); ?>
-									</option>
-									<?php endforeach; ?>
-								</select>
-								<p class="ck-field-note">Sync registrations to this Checkee event. Leave blank for standalone mode.</p>
-							</div>
-							<?php elseif ( \Checkee\API::is_connected() ) : ?>
-							<div class="ck-field">
-								<label for="checkee_event_id">Checkee Event ID <small style="font-weight:normal;color:#6b7280;">(connected)</small></label>
-								<input type="number" id="checkee_event_id" name="checkee_event_id"
-								       value="<?php echo esc_attr( $v['checkee_event_id'] ); ?>"
-								       placeholder="e.g. 12">
-								<p class="ck-field-note">Enter the Event ID from your Checkee dashboard. Leave blank for standalone mode.</p>
-							</div>
-							<?php endif; ?>
 						</div>
 
 						<!-- Field mapping -->
@@ -482,9 +392,19 @@ class Admin {
 			wp_die( esc_html__( 'Event not found.', 'checkee' ) );
 		}
 
-		$attendees = Attendees::get_for_mapping( $mapping_id );
-		$total     = count( $attendees );
-		$checked   = count( array_filter( $attendees, fn( $a ) => $a['status'] === 'checked_in' ) );
+		$search   = sanitize_text_field( wp_unslash( $_GET['s'] ?? '' ) );
+		$per_page = 50;
+		$paged    = max( 1, (int) ( $_GET['paged'] ?? 1 ) );
+
+		$stats       = Attendees::status_counts( $mapping_id );
+		$total_match = '' === $search ? $stats['total'] : Attendees::count_for_mapping( $mapping_id, $search );
+		$total_pages = max( 1, (int) ceil( $total_match / $per_page ) );
+		$paged       = min( $paged, $total_pages );
+		$offset      = ( $paged - 1 ) * $per_page;
+		$attendees   = Attendees::get_for_mapping( $mapping_id, $per_page, $offset, $search );
+		$checked     = $stats['checked_in'];
+
+		$base_url = admin_url( 'admin.php?page=checkee&action=attendees&id=' . $mapping_id );
 		?>
 		<div class="ck-wrap">
 			<?php self::render_notice(); ?>
@@ -495,28 +415,33 @@ class Admin {
 					</a>
 					<h1><?php echo esc_html( $mapping['event_name'] ); ?></h1>
 				</div>
-				<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=edit&id=' . $mapping_id ) ); ?>" class="ck-btn ck-btn-outline">
-					<i class="bi bi-pencil"></i> Edit Event
-				</a>
+				<div class="ck-action-group">
+					<a href="<?php echo esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=checkee_export_attendees&mapping_id=' . $mapping_id ), 'checkee_export_attendees_' . $mapping_id ) ); ?>" class="ck-btn ck-btn-outline">
+						<i class="bi bi-download"></i> Export CSV
+					</a>
+					<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=edit&id=' . $mapping_id ) ); ?>" class="ck-btn ck-btn-outline">
+						<i class="bi bi-pencil"></i> Edit Event
+					</a>
+				</div>
 			</div>
 
-			<!-- Stats row -->
+			<!-- Stats row (always true totals, independent of pagination/search) -->
 			<div class="ck-stats-row">
 				<div class="ck-stat">
-					<div class="ck-stat__value"><?php echo $total; ?></div>
+					<div class="ck-stat__value"><?php echo (int) $stats['total']; ?></div>
 					<div class="ck-stat__label">Registered</div>
 				</div>
 				<div class="ck-stat">
-					<div class="ck-stat__value ck-stat__value--green"><?php echo $checked; ?></div>
+					<div class="ck-stat__value ck-stat__value--green"><?php echo (int) $checked; ?></div>
 					<div class="ck-stat__label">Checked In</div>
 				</div>
 				<div class="ck-stat">
-					<div class="ck-stat__value ck-stat__value--muted"><?php echo $total - $checked; ?></div>
+					<div class="ck-stat__value ck-stat__value--muted"><?php echo (int) ( $stats['total'] - $checked ); ?></div>
 					<div class="ck-stat__label">Not Checked In</div>
 				</div>
 			</div>
 
-			<?php if ( empty( $attendees ) ) : ?>
+			<?php if ( 0 === $stats['total'] ) : ?>
 			<div class="ck-empty-state">
 				<div class="ck-empty-state__icon"><i class="bi bi-people"></i></div>
 				<h3>No attendees yet</h3>
@@ -525,15 +450,62 @@ class Admin {
 			<?php else : ?>
 
 			<!-- Search -->
-			<div class="ck-search-bar">
+			<form method="get" class="ck-search-bar">
+				<input type="hidden" name="page" value="checkee">
+				<input type="hidden" name="action" value="attendees">
+				<input type="hidden" name="id" value="<?php echo (int) $mapping_id; ?>">
 				<i class="bi bi-search"></i>
-				<input type="search" id="ck-search" placeholder="Search by name or email…" autocomplete="off">
+				<input type="search" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="Search by name or email…" autocomplete="off">
+				<?php if ( '' !== $search ) : ?>
+				<a href="<?php echo esc_url( $base_url ); ?>" class="ck-btn ck-btn-sm ck-btn-ghost">Clear</a>
+				<?php endif; ?>
+				<button type="submit" class="ck-btn ck-btn-sm ck-btn-primary">Search</button>
+				<?php if ( ! empty( $attendees ) ) : ?>
+				<button type="button" id="ck-select-all-link" class="ck-btn ck-btn-sm ck-btn-ghost">Select all on page</button>
+				<?php endif; ?>
+			</form>
+
+			<div class="ck-list-meta">
+				<?php if ( $total_match > 0 ) :
+					$range_start = $offset + 1;
+					$range_end   = min( $offset + $per_page, $total_match );
+					?>
+					<span>
+						Showing <?php echo (int) $range_start; ?>–<?php echo (int) $range_end; ?> of <?php echo (int) $total_match; ?> attendee<?php echo 1 === $total_match ? '' : 's'; ?>
+						<?php if ( '' !== $search ) : ?>
+							matching “<?php echo esc_html( $search ); ?>”
+						<?php endif; ?>
+					</span>
+				<?php else : ?>
+					<span>No attendees match “<?php echo esc_html( $search ); ?>”.</span>
+				<?php endif; ?>
 			</div>
+
+			<?php if ( ! empty( $attendees ) ) : ?>
+
+			<!-- Bulk actions -->
+			<div class="ck-bulk-bar" id="ck-bulk-bar" hidden>
+				<span class="ck-bulk-bar__count" id="ck-bulk-count">0 selected</span>
+				<div class="ck-action-group">
+					<button type="button" class="ck-btn ck-btn-sm ck-btn-primary" data-bulk="checkin"><i class="bi bi-box-arrow-in-right"></i> Check In</button>
+					<button type="button" class="ck-btn ck-btn-sm ck-btn-outline" data-bulk="checkout"><i class="bi bi-box-arrow-right"></i> Check Out</button>
+					<button type="button" class="ck-btn ck-btn-sm ck-btn-danger" data-bulk="delete"><i class="bi bi-trash3-fill"></i> Delete</button>
+				</div>
+			</div>
+
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" id="ck-bulk-form">
+				<?php wp_nonce_field( 'checkee_bulk_attendee_action', '_wpnonce' ); ?>
+				<input type="hidden" name="action" value="checkee_bulk_attendee_action">
+				<input type="hidden" name="mapping_id" value="<?php echo (int) $mapping_id; ?>">
+				<input type="hidden" name="bulk_action" id="ck-bulk-action-input" value="">
+				<input type="hidden" name="attendee_ids" id="ck-bulk-ids-input" value="">
+			</form>
 
 			<div class="ck-card ck-card--flush">
 				<table class="ck-table" id="ck-attendees-table">
 					<thead>
 						<tr>
+							<th class="ck-th-check"><input type="checkbox" id="ck-select-all"></th>
 							<th>First Name</th>
 							<th>Last Name</th>
 							<th>Email</th>
@@ -551,15 +523,16 @@ class Admin {
 						];
 						$s = $status_map[ $a['status'] ] ?? $status_map['registered'];
 					?>
-					<tr data-search="<?php echo esc_attr( strtolower( $a['first_name'] . ' ' . $a['last_name'] . ' ' . $a['email'] ) ); ?>">
-						<td><?php echo esc_html( $a['first_name'] ); ?></td>
-						<td><?php echo esc_html( $a['last_name'] ); ?></td>
-						<td class="ck-text-muted"><?php echo esc_html( $a['email'] ); ?></td>
-						<td class="ck-th-center">
+					<tr>
+						<td class="ck-th-check" data-label="Select"><input type="checkbox" class="ck-row-check" data-id="<?php echo (int) $a['id']; ?>"></td>
+						<td data-label="First Name"><?php echo esc_html( $a['first_name'] ); ?></td>
+						<td data-label="Last Name"><?php echo esc_html( $a['last_name'] ); ?></td>
+						<td class="ck-text-muted" data-label="Email"><?php echo esc_html( $a['email'] ); ?></td>
+						<td class="ck-th-center" data-label="Status">
 							<span class="ck-badge <?php echo esc_attr( $s['class'] ); ?>"><?php echo esc_html( $s['label'] ); ?></span>
 						</td>
-						<td class="ck-th-center ck-text-muted"><?php echo esc_html( wp_date( 'M j, Y', strtotime( $a['created_at'] ) ) ); ?></td>
-						<td class="ck-th-right">
+						<td class="ck-th-center ck-text-muted" data-label="Registered"><?php echo esc_html( wp_date( 'M j, Y', strtotime( $a['created_at'] ) ) ); ?></td>
+						<td class="ck-th-right" data-label="Actions">
 							<div class="ck-action-group">
 								<?php if ( $a['status'] !== 'checked_in' ) : ?>
 								<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ck-inline-form">
@@ -598,19 +571,89 @@ class Admin {
 				</table>
 			</div>
 
+			<?php if ( $total_pages > 1 ) :
+				$page_base    = $base_url . ( '' !== $search ? '&s=' . rawurlencode( $search ) : '' );
+				$prev_disabled = $paged <= 1;
+				$next_disabled = $paged >= $total_pages;
+				?>
+			<div class="ck-pagination">
+				<?php if ( $prev_disabled ) : ?>
+					<span class="ck-btn ck-btn-sm ck-btn-outline ck-btn--disabled">&laquo; Prev</span>
+				<?php else : ?>
+					<a href="<?php echo esc_url( $page_base . '&paged=' . ( $paged - 1 ) ); ?>" class="ck-btn ck-btn-sm ck-btn-outline">&laquo; Prev</a>
+				<?php endif; ?>
+				<span class="ck-pagination__pages">Page <?php echo (int) $paged; ?> of <?php echo (int) $total_pages; ?></span>
+				<?php if ( $next_disabled ) : ?>
+					<span class="ck-btn ck-btn-sm ck-btn-outline ck-btn--disabled">Next &raquo;</span>
+				<?php else : ?>
+					<a href="<?php echo esc_url( $page_base . '&paged=' . ( $paged + 1 ) ); ?>" class="ck-btn ck-btn-sm ck-btn-outline">Next &raquo;</a>
+				<?php endif; ?>
+			</div>
+			<?php endif; ?>
+
 			<script>
 			(function(){
-				var input = document.getElementById('ck-search');
-				if (!input) return;
-				input.addEventListener('input', function(){
-					var q = this.value.toLowerCase().trim();
-					document.querySelectorAll('#ck-attendees-table tbody tr').forEach(function(row){
-						row.style.display = (!q || row.dataset.search.includes(q)) ? '' : 'none';
-					});
+				var selectAll  = document.getElementById('ck-select-all');
+				var bulkBar    = document.getElementById('ck-bulk-bar');
+				var bulkCount  = document.getElementById('ck-bulk-count');
+				var bulkForm   = document.getElementById('ck-bulk-form');
+				var actionIn   = document.getElementById('ck-bulk-action-input');
+				var idsIn      = document.getElementById('ck-bulk-ids-input');
+
+				function rowChecks() {
+					return Array.prototype.slice.call(document.querySelectorAll('#ck-attendees-table .ck-row-check'));
+				}
+
+				function updateBulkBar() {
+					var checked = rowChecks().filter(function(c){ return c.checked; });
+					if (checked.length) {
+						bulkBar.hidden = false;
+						bulkCount.textContent = checked.length + ' selected';
+					} else {
+						bulkBar.hidden = true;
+					}
+					if (selectAll) {
+						var all = rowChecks();
+						selectAll.checked = all.length > 0 && checked.length === all.length;
+					}
+				}
+
+				rowChecks().forEach(function(cb){
+					cb.addEventListener('change', updateBulkBar);
 				});
+
+				if (selectAll) {
+					selectAll.addEventListener('change', function(){
+						rowChecks().forEach(function(cb){ cb.checked = selectAll.checked; });
+						updateBulkBar();
+					});
+				}
+
+				var selectAllLink = document.getElementById('ck-select-all-link');
+				if (selectAllLink && selectAll) {
+					selectAllLink.addEventListener('click', function(){
+						selectAll.checked = !selectAll.checked;
+						selectAll.dispatchEvent(new Event('change'));
+					});
+				}
+
+				if (bulkBar) {
+					bulkBar.querySelectorAll('[data-bulk]').forEach(function(btn){
+						btn.addEventListener('click', function(){
+							var action = this.getAttribute('data-bulk');
+							var ids = rowChecks().filter(function(c){ return c.checked; }).map(function(c){ return c.getAttribute('data-id'); });
+							if (!ids.length) return;
+							if (action === 'delete' && !confirm('Remove ' + ids.length + ' registration(s)? This cannot be undone.')) return;
+							actionIn.value = action;
+							idsIn.value = ids.join(',');
+							bulkForm.submit();
+						});
+					});
+				}
 			})();
 			</script>
-			<?php endif; ?>
+			<?php endif; // ! empty $attendees ?>
+			<?php endif; // 0 === $stats['total'] ?>
 
 		</div>
 		<?php
@@ -621,7 +664,7 @@ class Admin {
 	// -------------------------------------------------------------------------
 
 	public static function render_settings(): void {
-		$tab = sanitize_key( $_GET['tab'] ?? 'connection' );
+		$tab = sanitize_key( $_GET['tab'] ?? 'email' );
 		?>
 		<div class="ck-wrap">
 			<?php self::render_notice(); ?>
@@ -632,10 +675,6 @@ class Admin {
 			</div>
 
 			<div class="ck-tabs">
-				<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee-settings&tab=connection' ) ); ?>"
-				   class="ck-tab <?php echo $tab === 'connection' ? 'ck-tab--active' : ''; ?>">
-					<i class="bi bi-cloud-fill"></i> Checkee Connection
-				</a>
 				<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee-settings&tab=email' ) ); ?>"
 				   class="ck-tab <?php echo $tab === 'email' ? 'ck-tab--active' : ''; ?>">
 					<i class="bi bi-envelope-fill"></i> Email
@@ -646,128 +685,12 @@ class Admin {
 				</a>
 			</div>
 
-			<?php if ( $tab === 'connection' ) : ?>
-				<?php self::render_connection_settings(); ?>
-			<?php elseif ( $tab === 'email' ) : ?>
+			<?php if ( $tab === 'email' ) : ?>
 				<?php self::render_email_settings(); ?>
 			<?php else : ?>
 				<?php self::render_integration_settings(); ?>
 			<?php endif; ?>
 		</div>
-		<?php
-	}
-
-	private static function render_connection_settings(): void {
-		$is_connected = \Checkee\API::is_connected();
-		$token        = \Checkee\API::get_token();
-		$base_url     = \Checkee\API::get_base_url();
-		?>
-		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-			<?php wp_nonce_field( 'checkee_save_connection', '_wpnonce' ); ?>
-			<input type="hidden" name="action" value="checkee_save_connection">
-
-			<div class="ck-settings-grid">
-				<div class="ck-settings-main">
-
-					<?php if ( $is_connected ) : ?>
-					<div class="ck-notice ck-notice--success" style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:8px;background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;font-size:13px;margin-bottom:20px;">
-						<i class="bi bi-check-circle-fill"></i>
-						<span>Connected to Checkee. Events created at <strong>checkee.up.railway.app</strong> will appear in the event dropdown when you link a form.</span>
-					</div>
-					<?php else : ?>
-					<div class="ck-notice ck-notice--info" style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:8px;background:#eff6ff;border:1px solid #93c5fd;color:#1e3a5f;font-size:13px;margin-bottom:20px;">
-						<i class="bi bi-info-circle-fill"></i>
-						<span>Not connected. Enter your Checkee API token to sync registrations to <strong>checkee.up.railway.app</strong>. Without a token, the plugin works in standalone mode.</span>
-					</div>
-					<?php endif; ?>
-
-					<div class="ck-card">
-						<h2 class="ck-card__title"><i class="bi bi-key-fill"></i> API Token</h2>
-						<p class="ck-card__desc">Generate a token in your Checkee account under <strong>Settings → API Tokens</strong>, then paste it here.</p>
-						<div class="ck-field">
-							<label for="checkee_api_token">Token</label>
-							<input type="password"
-							       id="checkee_api_token"
-							       name="checkee_api_token"
-							       value="<?php echo esc_attr( $token ); ?>"
-							       placeholder="ck_live_xxxxxxxxxxxxxxxx"
-							       autocomplete="new-password">
-							<p class="ck-field-note">Stored securely. Never shared with the browser.</p>
-						</div>
-					</div>
-
-					<div class="ck-card">
-						<h2 class="ck-card__title"><i class="bi bi-globe"></i> API Base URL</h2>
-						<p class="ck-card__desc">Leave as default unless you are running a self-hosted Checkee instance or a local dev environment.</p>
-						<div class="ck-field">
-							<label for="checkee_api_url">Base URL</label>
-							<input type="url"
-							       id="checkee_api_url"
-							       name="checkee_api_url"
-							       value="<?php echo esc_attr( $base_url ); ?>"
-							       placeholder="https://checkee.up.railway.app">
-						</div>
-					</div>
-
-				</div>
-
-				<div class="ck-settings-side">
-					<div class="ck-card">
-						<button type="submit" class="ck-btn ck-btn-primary ck-btn-full">
-							<i class="bi bi-check-lg"></i> Save Connection
-						</button>
-						<?php if ( $is_connected ) : ?>
-						<button type="button" id="js-test-api" class="ck-btn ck-btn-secondary ck-btn-full" style="margin-top:8px;">
-							<i class="bi bi-wifi"></i> Test Connection
-						</button>
-						<p id="js-test-api-result" style="display:none;font-size:12px;margin-top:8px;padding:8px 12px;border-radius:6px;"></p>
-						<script>
-						document.getElementById('js-test-api').addEventListener('click', function() {
-							var btn = this;
-							var result = document.getElementById('js-test-api-result');
-							btn.disabled = true;
-							btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Testing…';
-							fetch(ajaxurl, {
-								method: 'POST',
-								headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-								body: new URLSearchParams({
-									action: 'checkee_test_api',
-									_wpnonce: '<?php echo esc_js( wp_create_nonce( 'checkee_test_api' ) ); ?>'
-								})
-							})
-							.then(r => r.json())
-							.then(data => {
-								result.style.display = 'block';
-								if (data.success) {
-									result.style.background = '#ecfdf5';
-									result.style.color = '#065f46';
-									result.style.border = '1px solid #6ee7b7';
-								} else {
-									result.style.background = '#fef2f2';
-									result.style.color = '#991b1b';
-									result.style.border = '1px solid #fca5a5';
-								}
-								result.textContent = data.data.message;
-								btn.disabled = false;
-								btn.innerHTML = '<i class="bi bi-wifi"></i> Test Connection';
-							});
-						});
-						</script>
-						<?php endif; ?>
-					</div>
-
-					<div class="ck-card">
-						<h2 class="ck-card__title"><i class="bi bi-question-circle"></i> How it works</h2>
-						<ol style="font-size:13px;color:#555;line-height:1.7;padding-left:16px;margin:0;">
-							<li>Create an event at <a href="https://checkee.up.railway.app" target="_blank" rel="noopener">checkee.up.railway.app</a></li>
-							<li>Copy the Event ID from the event page</li>
-							<li>In the event form below, paste the ID into the <em>Checkee Event ID</em> field</li>
-							<li>Form registrations flow to Checkee — check-in and dashboard work across all your WordPress sites</li>
-						</ol>
-					</div>
-				</div>
-			</div>
-		</form>
 		<?php
 	}
 
@@ -961,7 +884,6 @@ class Admin {
 			'ac_registration_tag' => $_POST['ac_registration_tag'] ?? '',
 			'ac_checkin_tag'      => $_POST['ac_checkin_tag'] ?? '',
 			'ac_checkout_tag'     => $_POST['ac_checkout_tag'] ?? '',
-			'checkee_event_id'    => $_POST['checkee_event_id'] ?? '',
 			'status'              => 'active',
 		] );
 
@@ -991,7 +913,6 @@ class Admin {
 			'ac_registration_tag' => $_POST['ac_registration_tag'] ?? '',
 			'ac_checkin_tag'      => $_POST['ac_checkin_tag'] ?? '',
 			'ac_checkout_tag'     => $_POST['ac_checkout_tag'] ?? '',
-			'checkee_event_id'    => $_POST['checkee_event_id'] ?? '',
 			'status'              => $_POST['status'] ?? 'active',
 		] );
 
@@ -1058,38 +979,73 @@ class Admin {
 		exit;
 	}
 
-	public static function handle_save_connection(): void {
+	public static function handle_bulk_attendee_action(): void {
 		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
-		if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_save_connection' ) ) wp_die( 'Security check failed' );
+		if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_bulk_attendee_action' ) ) wp_die( 'Security check failed' );
 
-		\Checkee\API::save(
-			sanitize_text_field( $_POST['checkee_api_token'] ?? '' ),
-			esc_url_raw( $_POST['checkee_api_url'] ?? '' )
-		);
+		$mapping_id  = (int) ( $_POST['mapping_id'] ?? 0 );
+		$bulk_action = sanitize_key( $_POST['bulk_action'] ?? '' );
+		$ids         = array_filter( array_map( 'intval', explode( ',', (string) ( $_POST['attendee_ids'] ?? '' ) ) ) );
 
-		wp_safe_redirect( admin_url( 'admin.php?page=checkee-settings&tab=connection&ck_msg=saved' ) );
+		foreach ( $ids as $attendee_id ) {
+			$attendee = Attendees::find_by_id( $attendee_id );
+			if ( ! $attendee ) {
+				continue;
+			}
+
+			if ( 'checkin' === $bulk_action ) {
+				Checkin::process( $attendee['qr_token'], 'in' );
+			} elseif ( 'checkout' === $bulk_action ) {
+				Checkin::process( $attendee['qr_token'], 'out' );
+			} elseif ( 'delete' === $bulk_action ) {
+				$mapping = Mappings::find_by_id( (int) ( $attendee['event_mapping_id'] ?? 0 ) );
+				if ( $mapping && ! empty( $mapping['ac_registration_tag'] ) ) {
+					try {
+						$ac = new ActiveCampaign();
+						if ( $ac->is_configured() ) {
+							$contact_id = $ac->find_contact( $attendee['email'] );
+							if ( $contact_id ) {
+								$ac->remove_tag( $contact_id, $mapping['ac_registration_tag'] );
+							}
+						}
+					} catch ( \Throwable $e ) {
+						// AC failure should not block deletion
+					}
+				}
+				Attendees::delete_by_id( $attendee_id );
+			}
+		}
+
+		wp_safe_redirect( admin_url( 'admin.php?page=checkee&action=attendees&id=' . $mapping_id . '&ck_msg=bulk_done' ) );
 		exit;
 	}
 
-	public static function ajax_test_api(): void {
-		try {
-			if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_test_api' ) ) {
-				wp_send_json_error( [ 'message' => 'Security check failed. Try refreshing the page.' ] );
-				return;
-			}
-			if ( ! current_user_can( 'manage_options' ) ) {
-				wp_send_json_error( [ 'message' => 'Unauthorized.' ] );
-				return;
-			}
-			$result = \Checkee\API::test_connection();
-			if ( $result['connected'] ) {
-				wp_send_json_success( [ 'message' => $result['message'] ] );
-			} else {
-				wp_send_json_error( [ 'message' => $result['message'] ] );
-			}
-		} catch ( \Throwable $e ) {
-			wp_send_json_error( [ 'message' => 'Error: ' . $e->getMessage() ] );
+	public static function handle_export_csv(): void {
+		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
+		$mapping_id = (int) ( $_GET['mapping_id'] ?? 0 );
+		if ( ! wp_verify_nonce( sanitize_key( $_GET['_wpnonce'] ?? '' ), 'checkee_export_attendees_' . $mapping_id ) ) wp_die( 'Security check failed' );
+
+		$mapping   = Mappings::find_by_id( $mapping_id );
+		$attendees = Attendees::get_all_for_mapping( $mapping_id );
+		$filename  = 'checkee-' . sanitize_title( $mapping['event_name'] ?? 'attendees' ) . '-' . gmdate( 'Y-m-d' ) . '.csv';
+
+		nocache_headers();
+		header( 'Content-Type: text/csv; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+
+		$out = fopen( 'php://output', 'w' );
+		fputcsv( $out, [ 'First Name', 'Last Name', 'Email', 'Status', 'Registered At' ] );
+		foreach ( $attendees as $a ) {
+			fputcsv( $out, [
+				$a['first_name'],
+				$a['last_name'],
+				$a['email'],
+				$a['status'],
+				$a['created_at'],
+			] );
 		}
+		fclose( $out );
+		exit;
 	}
 
 	public static function handle_save_settings(): void {
@@ -1135,41 +1091,6 @@ class Admin {
 			}
 		} catch ( \Throwable $e ) {
 			wp_send_json_error( [ 'message' => 'PHP error: ' . $e->getMessage() ] );
-		}
-	}
-
-	public static function ajax_push_event(): void {
-		try {
-			if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_push_event' ) ) {
-				wp_send_json_error( [ 'message' => 'Security check failed. Refresh and try again.' ] );
-				return;
-			}
-			if ( ! current_user_can( 'manage_options' ) ) {
-				wp_send_json_error( [ 'message' => 'Unauthorized.' ] );
-				return;
-			}
-
-			$mapping_id = (int) ( $_POST['mapping_id'] ?? 0 );
-			$mapping    = Mappings::find_by_id( $mapping_id );
-			if ( ! $mapping ) {
-				wp_send_json_error( [ 'message' => 'Event not found.' ] );
-				return;
-			}
-
-			$result = \Checkee\API::push_event( $mapping['event_name'] );
-			if ( ! $result || empty( $result['id'] ) ) {
-				wp_send_json_error( [ 'message' => 'Failed to create event in Checkee. Check your API token and try again.' ] );
-				return;
-			}
-
-			Mappings::update( $mapping_id, [ 'checkee_event_id' => (int) $result['id'] ] );
-
-			wp_send_json_success( [
-				'message'          => 'Event synced to Checkee (ID ' . (int) $result['id'] . ').',
-				'checkee_event_id' => (int) $result['id'],
-			] );
-		} catch ( \Throwable $e ) {
-			wp_send_json_error( [ 'message' => 'Error: ' . $e->getMessage() ] );
 		}
 	}
 
@@ -1228,6 +1149,7 @@ class Admin {
 			'created'          => [ 'success', 'Event created.' ],
 			'deleted'          => [ 'info',    'Event deleted.' ],
 			'attendee_removed' => [ 'success', 'Registration removed.' ],
+			'bulk_done'        => [ 'success', 'Bulk action completed.' ],
 		];
 		if ( ! isset( $map[ $msg ] ) ) return;
 		[ $type, $text ] = $map[ $msg ];

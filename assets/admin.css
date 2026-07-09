@@ -1,5 +1,5 @@
 /* ============================================================
-   Wand Admin — Clean SaaS UI
+   Checkee Admin — Clean SaaS UI
    ============================================================ */
 
 :root {
@@ -155,6 +155,12 @@
   border-color: transparent;
 }
 .ck-btn-ghost:hover { background: var(--ck-gray-light); color: var(--ck-primary); }
+.ck-btn-danger {
+  background: #fff;
+  color: var(--ck-red);
+  border-color: #fca5a5;
+}
+.ck-btn-danger:hover { background: var(--ck-red-light); border-color: var(--ck-red); }
 .ck-btn-sm { padding: 5px 11px; font-size: 12px; }
 .ck-btn-full { width: 100%; justify-content: center; display: flex; }
 
@@ -210,6 +216,8 @@
 }
 .ck-th-center { text-align: center !important; }
 .ck-th-right  { text-align: right  !important; }
+.ck-th-check  { width: 36px; text-align: center !important; }
+.ck-row-check, .ck-th-check input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; }
 
 /* ============================================================
    Badges
@@ -301,6 +309,33 @@
   color: var(--ck-primary);
 }
 .ck-search-bar input::placeholder { color: #9ca3af; }
+.ck-search-bar .ck-btn { flex-shrink: 0; }
+
+.ck-bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--ck-accent-light);
+  border: 1.5px solid #a7f3d0;
+  border-radius: var(--ck-radius-sm);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.ck-bulk-bar[hidden] { display: none; }
+.ck-bulk-bar__count { font-size: 13px; font-weight: 600; color: var(--ck-primary); }
+
+.ck-list-meta { font-size: 12.5px; color: var(--ck-gray); margin: -4px 0 12px; }
+
+.ck-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 16px;
+}
+.ck-pagination__pages { font-size: 13px; color: var(--ck-gray); font-weight: 500; }
+.ck-btn--disabled { opacity: .4; pointer-events: none; cursor: default; }
 
 /* ============================================================
    Empty state
@@ -442,6 +477,9 @@
   .ck-th-center, .ck-th-right { text-align: left !important; }
   .ck-action-group { justify-content: flex-start; }
   .ck-page-header { flex-direction: column; align-items: flex-start; }
+  .ck-search-bar { flex-wrap: wrap; padding: 10px 14px; }
+  .ck-search-bar input[type="search"] { width: auto; flex: 1 1 160px; }
+  .ck-pagination { justify-content: space-between; }
 }
 @media (max-width: 600px) {
   .ck-stats-row { grid-template-columns: 1fr 1fr; display: grid; }

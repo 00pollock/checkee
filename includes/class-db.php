@@ -6,7 +6,7 @@ defined( 'ABSPATH' ) || exit;
 
 class DB {
 
-	const VERSION = '1.3';
+	const VERSION = '1.2';
 
 	public static function install(): void {
 		global $wpdb;
@@ -50,7 +50,6 @@ class DB {
   ac_registration_tag VARCHAR(255) NOT NULL DEFAULT '',
   ac_checkin_tag VARCHAR(255) NOT NULL DEFAULT '',
   ac_checkout_tag VARCHAR(255) NOT NULL DEFAULT '',
-  checkee_event_id BIGINT(20) UNSIGNED DEFAULT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'active',
   created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY  (id),

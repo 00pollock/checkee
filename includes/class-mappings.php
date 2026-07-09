@@ -51,14 +51,13 @@ class Mappings {
 				'email_field'     => sanitize_text_field( $data['email_field'] ?? 'Email' ),
 				'first_name_field' => sanitize_text_field( $data['first_name_field'] ?? 'First Name' ),
 				'last_name_field' => sanitize_text_field( $data['last_name_field'] ?? 'Last Name' ),
-				'ac_registration_tag'  => sanitize_text_field( $data['ac_registration_tag'] ?? '' ),
-				'ac_checkin_tag'       => sanitize_text_field( $data['ac_checkin_tag'] ?? '' ),
-				'ac_checkout_tag'      => sanitize_text_field( $data['ac_checkout_tag'] ?? '' ),
-				'checkee_event_id'     => ! empty( $data['checkee_event_id'] ) ? (int) $data['checkee_event_id'] : null,
-				'status'               => 'active',
-				'created_at'           => current_time( 'mysql' ),
+				'ac_registration_tag' => sanitize_text_field( $data['ac_registration_tag'] ?? '' ),
+				'ac_checkin_tag'      => sanitize_text_field( $data['ac_checkin_tag'] ?? '' ),
+				'ac_checkout_tag'     => sanitize_text_field( $data['ac_checkout_tag'] ?? '' ),
+				'status'              => 'active',
+				'created_at'          => current_time( 'mysql' ),
 			],
-			[ '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' ]
+			[ '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ]
 		);
 		return $inserted ? (int) $wpdb->insert_id : false;
 	}
@@ -78,18 +77,13 @@ class Mappings {
 			'ac_registration_tag' => '%s',
 			'ac_checkin_tag'      => '%s',
 			'ac_checkout_tag'     => '%s',
-			'checkee_event_id'    => '%d',
 			'status'              => '%s',
 		];
 
 		foreach ( $allowed as $key => $fmt ) {
 			if ( array_key_exists( $key, $data ) ) {
-				if ( $key === 'checkee_event_id' ) {
-					$fields[ $key ] = ! empty( $data[ $key ] ) ? (int) $data[ $key ] : null;
-				} else {
-					$fields[ $key ] = sanitize_text_field( $data[ $key ] );
-				}
-				$formats[] = $fmt;
+				$fields[ $key ] = sanitize_text_field( $data[ $key ] );
+				$formats[]      = $fmt;
 			}
 		}
 
