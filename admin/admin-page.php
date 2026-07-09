@@ -269,6 +269,28 @@ class Admin {
 									placeholder="Checked Out - <?php echo esc_attr( $v['event_name'] ?: 'Event Name' ); ?>">
 							</div>
 						</div>
+
+						<?php if ( $is_edit ) :
+							$staff_url = home_url( 'checkee/' . $mapping['staff_slug'] );
+						?>
+						<div class="ck-card">
+							<h2 class="ck-card__title">Staff check-in link</h2>
+							<div class="ck-field">
+								<label for="staff_link">Link</label>
+								<input type="text" id="staff_link" readonly value="<?php echo esc_url( $staff_url ); ?>" onclick="this.select()">
+							</div>
+							<div class="ck-field">
+								<label for="staff_pin">PIN</label>
+								<input type="text" id="staff_pin" readonly value="<?php echo esc_html( $mapping['staff_pin'] ); ?>" onclick="this.select()">
+							</div>
+							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('Regenerate the link and PIN? The old ones will stop working immediately.');">
+								<?php wp_nonce_field( 'checkee_regenerate_staff_' . $id, '_wpnonce' ); ?>
+								<input type="hidden" name="action" value="checkee_regenerate_staff">
+								<input type="hidden" name="event_id" value="<?php echo (int) $id; ?>">
+								<button type="submit" class="ck-btn ck-btn-outline ck-btn-full">Regenerate link &amp; PIN</button>
+							</form>
+						</div>
+						<?php endif; ?>
 					</div>
 
 				</div><!-- .ck-form-grid -->
@@ -823,7 +845,7 @@ class Admin {
 	}
 
 	/** Renders a single attendee <tr> — shared by the page render and the live-search AJAX endpoint. */
-	private static function render_attendee_row( array $a, int $mapping_id ): string {
+	public static function render_attendee_row( array $a, int $mapping_id, bool $show_delete = true ): string {
 		$status_map = [
 			'checked_in'  => [ 'label' => 'Checked In',  'class' => 'ck-badge--green' ],
 			'checked_out' => [ 'label' => 'Checked Out', 'class' => 'ck-badge--gray'  ],
@@ -848,6 +870,7 @@ class Admin {
 					<?php else : ?>
 					<button type="button" class="ck-btn ck-btn-sm ck-btn-outline ck-checkin-btn" data-id="<?php echo (int) $a['id']; ?>" data-action="out">Check out</button>
 					<?php endif; ?>
+					<?php if ( $show_delete ) : ?>
 					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" class="ck-inline-form">
 						<?php wp_nonce_field( 'checkee_delete_attendee_' . $a['id'], '_wpnonce' ); ?>
 						<input type="hidden" name="action"      value="checkee_delete_attendee">
@@ -857,6 +880,7 @@ class Admin {
 							<i class="bi bi-trash3-fill"></i>
 						</button>
 					</form>
+					<?php endif; ?>
 				</div>
 			</td>
 		</tr>
@@ -1136,6 +1160,16 @@ class Admin {
 		exit;
 	}
 
+	public static function handle_regenerate_staff(): void {
+		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
+		$id = (int) ( $_POST['event_id'] ?? 0 );
+		if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_regenerate_staff_' . $id ) ) wp_die( 'Security check failed' );
+
+		Mappings::regenerate_staff_access( $id );
+		wp_safe_redirect( admin_url( 'admin.php?page=checkee&action=edit&id=' . $id . '&ck_msg=staff_regenerated' ) );
+		exit;
+	}
+
 	public static function ajax_manual_checkin(): void {
 		try {
 			if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_manual_checkin_ajax' ) ) {
@@ -1256,7 +1290,7 @@ class Admin {
 	}
 
 	/** Finds-or-creates the AC contact for a walk-in and applies the event's registration tag. */
-	private static function sync_walkin_to_ac( array $attendee, array $mapping ): void {
+	public static function sync_walkin_to_ac( array $attendee, array $mapping ): void {
 		try {
 			$ac = new ActiveCampaign();
 			if ( ! $ac->is_configured() ) {
@@ -1531,6 +1565,7 @@ class Admin {
 			'walkin_already'   => [ 'info',    'Already registered and checked in.' ],
 			'walkin_invalid'   => [ 'error',   'Enter a valid email address.' ],
 			'walkin_error'     => [ 'error',   'Could not add walk-in. Try again.' ],
+			'staff_regenerated' => [ 'success', 'Staff link and PIN regenerated. The old ones no longer work.' ],
 		];
 		if ( ! isset( $map[ $msg ] ) ) return;
 		[ $type, $text ] = $map[ $msg ];

@@ -6,7 +6,7 @@ defined( 'ABSPATH' ) || exit;
 
 class DB {
 
-	const VERSION = '1.2';
+	const VERSION = '1.3';
 
 	public static function install(): void {
 		global $wpdb;
@@ -51,12 +51,16 @@ class DB {
   ac_checkin_tag VARCHAR(255) NOT NULL DEFAULT '',
   ac_checkout_tag VARCHAR(255) NOT NULL DEFAULT '',
   status VARCHAR(20) NOT NULL DEFAULT 'active',
+  staff_slug VARCHAR(40) NOT NULL DEFAULT '',
+  staff_pin VARCHAR(10) NOT NULL DEFAULT '',
   created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY  (id),
-  KEY status (status)
+  KEY status (status),
+  KEY staff_slug (staff_slug)
 ) {$charset_collate};";
 
 		dbDelta( $sql2 );
+		self::backfill_staff_access();
 
 		// Check-in log table
 		$sql3 = "CREATE TABLE {$prefix}checkee_checkin_log (
@@ -72,6 +76,17 @@ class DB {
 		dbDelta( $sql3 );
 
 		update_option( 'checkee_db_version', self::VERSION );
+	}
+
+	/** Gives any event created before staff_slug/staff_pin existed a fresh one, so the public check-in page works for it too. */
+	private static function backfill_staff_access(): void {
+		global $wpdb;
+		$table = self::table( 'event_mappings' );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$ids = $wpdb->get_col( "SELECT id FROM {$table} WHERE staff_slug = ''" );
+		foreach ( $ids as $id ) {
+			Mappings::regenerate_staff_access( (int) $id );
+		}
 	}
 
 	public static function drop_all(): void {

@@ -40,6 +40,20 @@ class Mappings {
 		return $row ?: null;
 	}
 
+	public static function find_by_staff_slug( string $slug ): ?array {
+		if ( '' === $slug ) {
+			return null;
+		}
+		global $wpdb;
+		$table = DB::table( 'event_mappings' );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery
+		$row = $wpdb->get_row(
+			$wpdb->prepare( "SELECT * FROM {$table} WHERE staff_slug = %s LIMIT 1", $slug ),
+			ARRAY_A
+		);
+		return $row ?: null;
+	}
+
 	public static function create( array $data ): int|false {
 		global $wpdb;
 		$inserted = $wpdb->insert(
@@ -55,11 +69,36 @@ class Mappings {
 				'ac_checkin_tag'      => sanitize_text_field( $data['ac_checkin_tag'] ?? '' ),
 				'ac_checkout_tag'     => sanitize_text_field( $data['ac_checkout_tag'] ?? '' ),
 				'status'              => 'active',
+				'staff_slug'          => self::generate_staff_slug(),
+				'staff_pin'           => self::generate_staff_pin(),
 				'created_at'          => current_time( 'mysql' ),
 			],
-			[ '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ]
+			[ '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ]
 		);
 		return $inserted ? (int) $wpdb->insert_id : false;
+	}
+
+	/** Issues a fresh staff URL + PIN for a mapping, invalidating the old ones. */
+	public static function regenerate_staff_access( int $id ): array {
+		global $wpdb;
+		$slug = self::generate_staff_slug();
+		$pin  = self::generate_staff_pin();
+		$wpdb->update(
+			DB::table( 'event_mappings' ),
+			[ 'staff_slug' => $slug, 'staff_pin' => $pin ],
+			[ 'id' => $id ],
+			[ '%s', '%s' ],
+			[ '%d' ]
+		);
+		return [ 'staff_slug' => $slug, 'staff_pin' => $pin ];
+	}
+
+	public static function generate_staff_slug(): string {
+		return strtolower( wp_generate_password( 24, false, false ) );
+	}
+
+	public static function generate_staff_pin(): string {
+		return str_pad( (string) wp_rand( 0, 9999 ), 4, '0', STR_PAD_LEFT );
 	}
 
 	public static function update( int $id, array $data ): bool {

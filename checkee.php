@@ -3,7 +3,7 @@
  * Plugin Name:       Checkee
  * Plugin URI:        https://github.com/00pollock/checkee
  * Description:       Post-registration operations for WordPress events: attendee management, QR check-in, and ActiveCampaign tag sync. Works with Kadence Forms.
- * Version:           1.3.3
+ * Version:           1.4.0
  * Requires at least: 6.3
  * Requires PHP:      8.1
  * Author:            George Okanga
@@ -13,7 +13,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'CHECKEE_VERSION', '1.3.3' );
+define( 'CHECKEE_VERSION', '1.4.0' );
 define( 'CHECKEE_DIR',     plugin_dir_path( __FILE__ ) );
 define( 'CHECKEE_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -54,6 +54,7 @@ use Checkee\Attendees;
 use Checkee\Email;
 use Checkee\Checkin;
 use Checkee\Admin;
+use Checkee\StaffPortal;
 
 register_activation_hook( __FILE__, function () {
 	try {
@@ -90,6 +91,13 @@ function checkee_boot(): void {
 	// Run DB migrations when the stored version is behind the current one
 	if ( get_option( 'checkee_db_version' ) !== DB::VERSION ) {
 		DB::install();
+	}
+
+	// Flush rewrite rules once per plugin version, so new rewrite rules (like the staff
+	// check-in page) actually take effect on sites that update rather than fresh-install.
+	if ( get_option( 'checkee_rewrite_version' ) !== CHECKEE_VERSION ) {
+		add_action( 'init', 'flush_rewrite_rules', 20 );
+		update_option( 'checkee_rewrite_version', CHECKEE_VERSION );
 	}
 
 	// Kadence Advanced Form (kadence/advanced-form block) fires this hook on submission.
@@ -168,6 +176,16 @@ function checkee_boot(): void {
 	// Handle check-in page requests
 	add_action( 'template_redirect', [ Checkin::class, 'handle_request' ] );
 
+	// Public staff check-in page — /checkee/{slug} — no WP login, PIN-gated per event
+	add_action( 'init', [ StaffPortal::class, 'register_rewrite_rule' ] );
+	add_action( 'template_redirect', [ StaffPortal::class, 'handle_request' ] );
+	add_action( 'wp_ajax_checkee_staff_search',                 [ StaffPortal::class, 'ajax_search' ] );
+	add_action( 'wp_ajax_nopriv_checkee_staff_search',          [ StaffPortal::class, 'ajax_search' ] );
+	add_action( 'wp_ajax_checkee_staff_manual_checkin',         [ StaffPortal::class, 'ajax_manual_checkin' ] );
+	add_action( 'wp_ajax_nopriv_checkee_staff_manual_checkin',  [ StaffPortal::class, 'ajax_manual_checkin' ] );
+	add_action( 'wp_ajax_checkee_staff_add_walkin',             [ StaffPortal::class, 'ajax_add_walkin' ] );
+	add_action( 'wp_ajax_nopriv_checkee_staff_add_walkin',      [ StaffPortal::class, 'ajax_add_walkin' ] );
+
 	// Admin
 	if ( is_admin() ) {
 		add_action( 'admin_menu',                            [ Admin::class, 'register_menu' ] );
@@ -175,6 +193,7 @@ function checkee_boot(): void {
 		add_action( 'admin_post_checkee_create_event',       [ Admin::class, 'handle_create_event' ] );
 		add_action( 'admin_post_checkee_update_event',       [ Admin::class, 'handle_update_event' ] );
 		add_action( 'admin_post_checkee_delete_event',       [ Admin::class, 'handle_delete_event' ] );
+		add_action( 'admin_post_checkee_regenerate_staff',   [ Admin::class, 'handle_regenerate_staff' ] );
 		add_action( 'admin_post_checkee_delete_attendee',      [ Admin::class, 'handle_delete_attendee' ] );
 		add_action( 'admin_post_checkee_add_walkin',           [ Admin::class, 'handle_add_walkin' ] );
 		add_action( 'admin_post_checkee_save_settings',      [ Admin::class, 'handle_save_settings' ] );

@@ -58,7 +58,9 @@ class ActiveCampaign {
 		if ( ! $tag_id ) {
 			return true;
 		}
-		$response = $this->request( 'GET', '/contactTags', [], [ 'contact' => $contact_id ] );
+		// Contact-tag associations are only listable via this contact-scoped sub-resource —
+		// GET /contactTags?contact=X (a query param on the generic collection) is not a real filter.
+		$response = $this->request( 'GET', '/contacts/' . $contact_id . '/contactTags' );
 		if ( is_wp_error( $response ) ) {
 			return false;
 		}
