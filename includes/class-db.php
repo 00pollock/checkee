@@ -6,7 +6,7 @@ defined( 'ABSPATH' ) || exit;
 
 class DB {
 
-	const VERSION = '1.3';
+	const VERSION = '1.4';
 
 	public static function install(): void {
 		global $wpdb;
@@ -75,6 +75,23 @@ class DB {
 
 		dbDelta( $sql3 );
 
+		// Email send log — every confirmation/resend attempt, success or failure, with the reason if it failed.
+		$sql4 = "CREATE TABLE {$prefix}checkee_email_log (
+  id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  attendee_id BIGINT(20) UNSIGNED NOT NULL,
+  event_mapping_id BIGINT(20) UNSIGNED DEFAULT NULL,
+  type VARCHAR(20) NOT NULL DEFAULT '',
+  email VARCHAR(255) NOT NULL DEFAULT '',
+  success TINYINT(1) NOT NULL DEFAULT 0,
+  error_message TEXT,
+  created_at DATETIME NOT NULL DEFAULT '0000-00-00 00:00:00',
+  PRIMARY KEY  (id),
+  KEY event_mapping_id (event_mapping_id),
+  KEY attendee_id (attendee_id)
+) {$charset_collate};";
+
+		dbDelta( $sql4 );
+
 		update_option( 'checkee_db_version', self::VERSION );
 	}
 
@@ -93,6 +110,7 @@ class DB {
 		global $wpdb;
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery
 		$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}checkee_checkin_log" );
+		$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}checkee_email_log" );
 		$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}checkee_attendees" );
 		$wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}checkee_event_mappings" );
 		// phpcs:enable

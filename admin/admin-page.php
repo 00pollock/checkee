@@ -44,6 +44,7 @@ class Admin {
 			'create'    => self::render_event_form(),
 			'edit'      => self::render_event_form( (int) ( $_GET['id'] ?? 0 ) ),
 			'attendees' => self::render_attendees( (int) ( $_GET['id'] ?? 0 ) ),
+			'email_log' => self::render_email_log( (int) ( $_GET['id'] ?? 0 ) ),
 			default     => self::render_event_list(),
 		};
 	}
@@ -446,6 +447,9 @@ class Admin {
 					<button type="button" id="ck-resend-qr" class="ck-btn ck-btn-outline" data-mapping-id="<?php echo (int) $mapping_id; ?>" data-nonce="<?php echo esc_attr( wp_create_nonce( 'checkee_resend_qr_batch' ) ); ?>" data-total="<?php echo (int) $stats['total']; ?>">
 						Resend all QR codes
 					</button>
+					<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=email_log&id=' . $mapping_id ) ); ?>" class="ck-btn ck-btn-outline">
+						View send log
+					</a>
 					<?php endif; ?>
 					<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=edit&id=' . $mapping_id ) ); ?>" class="ck-btn ck-btn-outline">
 						Edit event
@@ -568,24 +572,32 @@ class Admin {
 					}).then(function(r){ return r.json(); });
 				}
 
-				function runFrom(offset, sentSoFar) {
+				var logUrl = <?php echo wp_json_encode( admin_url( 'admin.php?page=checkee&action=email_log&id=' . $mapping_id ) ); ?>;
+
+				function runFrom(offset, sentSoFar, failedSoFar) {
 					sendBatch(offset).then(function(data){
 						if (!data.success) {
 							btn.disabled = false;
 							btn.innerHTML = 'Resend all QR codes';
-							result.textContent = (data.data && data.data.message) ? data.data.message : 'Resend failed after ' + sentSoFar + ' sent.';
+							result.innerHTML = ((data.data && data.data.message) ? data.data.message : 'Resend failed after ' + sentSoFar + ' sent.');
 							return;
 						}
-						sentSoFar += data.data.sent;
+						sentSoFar   += data.data.sent;
+						failedSoFar += data.data.failed;
 						var total = data.data.total;
-						result.textContent = 'Resent ' + sentSoFar + '/' + total + '…';
+						result.textContent = 'Resent ' + sentSoFar + '/' + total + (failedSoFar ? ' (' + failedSoFar + ' failed)' : '') + '…';
 
 						if (data.data.done) {
 							btn.disabled = false;
 							btn.innerHTML = 'Resend all QR codes';
-							result.textContent = 'Done — resent QR code emails to ' + sentSoFar + ' of ' + total + ' attendees.';
+							if (failedSoFar > 0) {
+								result.innerHTML = 'Done — sent ' + sentSoFar + ' of ' + total + ' (' + failedSoFar + ' failed). '
+									+ '<a href="' + logUrl + '">View send log</a> for details.';
+							} else {
+								result.textContent = 'Done — resent QR code emails to ' + sentSoFar + ' of ' + total + ' attendees.';
+							}
 						} else {
-							setTimeout(function(){ runFrom(data.data.next_offset, sentSoFar); }, BATCH_DELAY_MS);
+							setTimeout(function(){ runFrom(data.data.next_offset, sentSoFar, failedSoFar); }, BATCH_DELAY_MS);
 						}
 					}).catch(function(){
 						btn.disabled = false;
@@ -600,7 +612,7 @@ class Admin {
 					btn.disabled = true;
 					btn.innerHTML = 'Resending…';
 					result.textContent = 'Resent 0/' + total + '…';
-					runFrom(0, 0);
+					runFrom(0, 0, 0);
 				});
 			})();
 			</script>
@@ -843,6 +855,105 @@ class Admin {
 			</script>
 			<?php endif; // 0 === $stats['total'] ?>
 
+		</div>
+		<?php
+	}
+
+	private static function render_email_log( int $mapping_id ): void {
+		$mapping = Mappings::find_by_id( $mapping_id );
+		if ( ! $mapping ) {
+			wp_die( esc_html__( 'Event not found.', 'checkee' ) );
+		}
+
+		$per_page    = 100;
+		$paged       = max( 1, (int) ( $_GET['paged'] ?? 1 ) );
+		$total       = EmailLog::count_for_mapping( $mapping_id );
+		$failed      = EmailLog::count_for_mapping( $mapping_id, false );
+		$total_pages = max( 1, (int) ceil( $total / $per_page ) );
+		$paged       = min( $paged, $total_pages );
+		$offset      = ( $paged - 1 ) * $per_page;
+		$entries     = EmailLog::get_for_mapping( $mapping_id, $per_page, $offset );
+		$base_url    = admin_url( 'admin.php?page=checkee&action=email_log&id=' . $mapping_id );
+		$type_labels = [ 'confirmation' => 'Confirmation', 'resend' => 'Resend' ];
+		?>
+		<div class="ck-wrap">
+			<div class="ck-page-header">
+				<div class="ck-page-header__left">
+					<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee&action=attendees&id=' . $mapping_id ) ); ?>" class="ck-back-link">
+						<?php echo esc_html( $mapping['event_name'] ); ?>
+					</a>
+					<h1>Email send log</h1>
+				</div>
+			</div>
+
+			<?php if ( 0 === $total ) : ?>
+			<div class="ck-empty-state">
+				<div class="ck-empty-state__icon"><i class="bi bi-envelope"></i></div>
+				<h3>No emails logged yet</h3>
+				<p>Confirmation and resend emails will show up here once sent.</p>
+			</div>
+			<?php else : ?>
+
+			<div class="ck-list-meta">
+				<span><?php echo (int) $total; ?> email<?php echo 1 === $total ? '' : 's'; ?> logged<?php echo $failed > 0 ? ', ' . (int) $failed . ' failed' : ''; ?></span>
+			</div>
+
+			<div class="ck-card ck-card--flush">
+				<table class="ck-table">
+					<thead>
+						<tr>
+							<th>Attendee</th>
+							<th>Email</th>
+							<th>Type</th>
+							<th class="ck-th-center">Result</th>
+							<th>Error</th>
+							<th class="ck-th-center">Sent At</th>
+						</tr>
+					</thead>
+					<tbody>
+					<?php foreach ( $entries as $e ) :
+						$name = trim( ( $e['first_name'] ?? '' ) . ' ' . ( $e['last_name'] ?? '' ) );
+						$ok   = (int) $e['success'] === 1;
+					?>
+						<tr>
+							<td data-label="Attendee"><?php echo esc_html( $name ?: '—' ); ?></td>
+							<td data-label="Email"><?php echo esc_html( $e['email'] ); ?></td>
+							<td data-label="Type"><?php echo esc_html( $type_labels[ $e['type'] ] ?? $e['type'] ); ?></td>
+							<td class="ck-th-center" data-label="Result">
+								<?php if ( $ok ) : ?>
+								<span class="ck-badge ck-badge--green">Sent</span>
+								<?php else : ?>
+								<span class="ck-badge ck-badge--red">Failed</span>
+								<?php endif; ?>
+							</td>
+							<td data-label="Error" class="ck-text-muted"><?php echo esc_html( $e['error_message'] ?: '—' ); ?></td>
+							<td class="ck-th-center ck-text-muted" data-label="Sent At"><?php echo esc_html( mysql2date( 'M j, Y g:i a', $e['created_at'] ) ); ?></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+			</div>
+
+			<?php if ( $total_pages > 1 ) :
+				$prev_disabled = $paged <= 1;
+				$next_disabled = $paged >= $total_pages;
+				?>
+			<div class="ck-pagination">
+				<?php if ( $prev_disabled ) : ?>
+					<span class="ck-btn ck-btn-sm ck-btn-outline ck-btn--disabled">&laquo; Prev</span>
+				<?php else : ?>
+					<a href="<?php echo esc_url( $base_url . '&paged=' . ( $paged - 1 ) ); ?>" class="ck-btn ck-btn-sm ck-btn-outline">&laquo; Prev</a>
+				<?php endif; ?>
+				<span class="ck-pagination__pages">Page <?php echo (int) $paged; ?> of <?php echo (int) $total_pages; ?></span>
+				<?php if ( $next_disabled ) : ?>
+					<span class="ck-btn ck-btn-sm ck-btn-outline ck-btn--disabled">Next &raquo;</span>
+				<?php else : ?>
+					<a href="<?php echo esc_url( $base_url . '&paged=' . ( $paged + 1 ) ); ?>" class="ck-btn ck-btn-sm ck-btn-outline">Next &raquo;</a>
+				<?php endif; ?>
+			</div>
+			<?php endif; ?>
+
+			<?php endif; // 0 === total ?>
 		</div>
 		<?php
 	}
@@ -1468,20 +1579,27 @@ class Admin {
 			$total     = Attendees::status_counts( $mapping_id )['total'];
 			$attendees = Attendees::get_for_mapping( $mapping_id, $batch_size, $offset );
 
-			$sent = 0;
-			foreach ( $attendees as $a ) {
+			$sent  = 0;
+			$count = count( $attendees );
+			foreach ( $attendees as $i => $a ) {
 				if ( Email::send_resend( $a, $mapping ) ) {
 					$sent++;
 				}
+				// Small pause between individual sends so a burst of 10 back-to-back doesn't trip
+				// the mail host's rate limiting — a likely cause if sends start failing mid-batch.
+				if ( $i < $count - 1 ) {
+					usleep( 150000 );
+				}
 			}
 
-			$next_offset = $offset + count( $attendees );
+			$next_offset = $offset + $count;
 
 			wp_send_json_success( [
 				'sent'        => $sent,
+				'failed'      => $count - $sent,
 				'next_offset' => $next_offset,
 				'total'       => $total,
-				'done'        => $next_offset >= $total || 0 === count( $attendees ),
+				'done'        => $next_offset >= $total || 0 === $count,
 			] );
 		} catch ( \Throwable $e ) {
 			wp_send_json_error( [ 'message' => 'Error: ' . $e->getMessage() ] );

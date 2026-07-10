@@ -28,18 +28,27 @@ class Email {
 		$body    = self::render_body( $body_template, $attendee, $mapping );
 		$headers = self::build_headers();
 
+		$mail_error = '';
+		$capture_error = function ( $wp_error ) use ( &$mail_error ) {
+			$mail_error = $wp_error->get_error_message();
+		};
 		add_filter( 'wp_mail_content_type', [ self::class, 'html_content_type' ] );
+		add_action( 'wp_mail_failed', $capture_error );
 		$sent = wp_mail( $to, $subject, $body, $headers );
 		remove_filter( 'wp_mail_content_type', [ self::class, 'html_content_type' ] );
+		remove_action( 'wp_mail_failed', $capture_error );
+
+		if ( ! $sent && '' === $mail_error ) {
+			global $phpmailer;
+			if ( isset( $phpmailer ) && $phpmailer instanceof \PHPMailer\PHPMailer\PHPMailer ) {
+				$mail_error = $phpmailer->ErrorInfo;
+			}
+		}
+
+		EmailLog::record( (int) ( $attendee['id'] ?? 0 ), (int) ( $mapping['id'] ?? 0 ) ?: null, $context, $to, $sent, $mail_error );
 
 		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-			error_log( "Checkee | Email::send ({$context}) to=" . $to . ' sent=' . ( $sent ? 'true' : 'false' ) );
-			if ( ! $sent ) {
-				global $phpmailer;
-				if ( isset( $phpmailer ) && $phpmailer instanceof \PHPMailer\PHPMailer\PHPMailer ) {
-					error_log( 'Checkee | PHPMailer error: ' . $phpmailer->ErrorInfo );
-				}
-			}
+			error_log( "Checkee | Email::send ({$context}) to=" . $to . ' sent=' . ( $sent ? 'true' : 'false' ) . ( $mail_error ? ' error=' . $mail_error : '' ) );
 		}
 
 		return $sent;
