@@ -3,7 +3,7 @@
  * Plugin Name:       Checkee
  * Plugin URI:        https://github.com/00pollock/checkee
  * Description:       Post-registration operations for WordPress events: attendee management, QR check-in, and ActiveCampaign tag sync. Works with Kadence Forms.
- * Version:           1.4.0
+ * Version:           1.5.0
  * Requires at least: 6.3
  * Requires PHP:      8.1
  * Author:            George Okanga
@@ -13,7 +13,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'CHECKEE_VERSION', '1.4.0' );
+define( 'CHECKEE_VERSION', '1.5.0' );
 define( 'CHECKEE_DIR',     plugin_dir_path( __FILE__ ) );
 define( 'CHECKEE_URL',     plugin_dir_url( __FILE__ ) );
 
@@ -198,6 +198,7 @@ function checkee_boot(): void {
 		add_action( 'admin_post_checkee_add_walkin',           [ Admin::class, 'handle_add_walkin' ] );
 		add_action( 'admin_post_checkee_save_settings',      [ Admin::class, 'handle_save_settings' ] );
 		add_action( 'admin_post_checkee_save_email',         [ Admin::class, 'handle_save_email' ] );
+		add_action( 'admin_post_checkee_save_resend_email',  [ Admin::class, 'handle_save_resend_email' ] );
 		add_action( 'wp_ajax_checkee_test_ac',               [ Admin::class, 'ajax_test_ac' ] );
 		add_action( 'wp_ajax_checkee_get_form_fields',       [ Admin::class, 'ajax_get_form_fields' ] );
 		add_action( 'wp_ajax_checkee_scan_checkin',          [ Admin::class, 'ajax_scan_checkin' ] );

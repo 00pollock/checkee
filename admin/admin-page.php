@@ -908,6 +908,10 @@ class Admin {
 				   class="ck-tab <?php echo $tab === 'email' ? 'ck-tab--active' : ''; ?>">
 					<i class="bi bi-envelope-fill"></i> Email
 				</a>
+				<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee-settings&tab=resend' ) ); ?>"
+				   class="ck-tab <?php echo $tab === 'resend' ? 'ck-tab--active' : ''; ?>">
+					<i class="bi bi-qr-code"></i> Resend Reminder
+				</a>
 				<a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee-settings&tab=integrations' ) ); ?>"
 				   class="ck-tab <?php echo $tab === 'integrations' ? 'ck-tab--active' : ''; ?>">
 					<i class="bi bi-plug-fill"></i> Integrations
@@ -916,6 +920,8 @@ class Admin {
 
 			<?php if ( $tab === 'email' ) : ?>
 				<?php self::render_email_settings(); ?>
+			<?php elseif ( $tab === 'resend' ) : ?>
+				<?php self::render_resend_email_settings(); ?>
 			<?php else : ?>
 				<?php self::render_integration_settings(); ?>
 			<?php endif; ?>
@@ -991,6 +997,71 @@ class Admin {
 					<div class="ck-card">
 						<button type="submit" class="ck-btn ck-btn-primary ck-btn-full">
 							<i class="bi bi-check-lg"></i> Save email settings
+						</button>
+					</div>
+				</div>
+			</div>
+		</form>
+		<?php
+	}
+
+	private static function render_resend_email_settings(): void {
+		$subject  = Email::get_resend_subject();
+		$template = Email::get_resend_template();
+
+		$placeholders = [
+			'{{first_name}}'  => 'Attendee first name',
+			'{{last_name}}'   => 'Attendee last name',
+			'{{full_name}}'   => 'Attendee full name',
+			'{{email}}'       => 'Attendee email',
+			'{{event_name}}'  => 'Event name',
+			'{{qr_code}}'     => 'QR code image (renders inline)',
+			'{{checkin_url}}' => 'Check-in page URL',
+			'{{site_name}}'   => 'Your site name',
+			'{{site_url}}'    => 'Your site URL',
+		];
+		?>
+		<p class="ck-card__desc" style="margin:0 0 16px;">This is what's sent when you use <strong>Resend all QR codes</strong> on an event's attendee page — separate from the confirmation email so recipients aren't confused into thinking they just registered. Sender name/email is shared with the <a href="<?php echo esc_url( admin_url( 'admin.php?page=checkee-settings&tab=email' ) ); ?>">Email tab</a>.</p>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<?php wp_nonce_field( 'checkee_save_resend_email', '_wpnonce' ); ?>
+			<input type="hidden" name="action" value="checkee_save_resend_email">
+
+			<div class="ck-settings-grid">
+				<div class="ck-settings-main">
+					<div class="ck-card">
+						<h2 class="ck-card__title"><i class="bi bi-send-fill"></i> Subject</h2>
+						<div class="ck-field">
+							<label for="resend_email_subject">Subject Line</label>
+							<input type="text" id="resend_email_subject" name="resend_email_subject" value="<?php echo esc_attr( $subject ); ?>">
+							<p class="ck-field-note">Supports: <code>{{event_name}}</code> <code>{{first_name}}</code></p>
+						</div>
+					</div>
+
+					<div class="ck-card">
+						<h2 class="ck-card__title"><i class="bi bi-code-slash"></i> Email Template</h2>
+						<p class="ck-card__desc">Full HTML email body. Use the placeholders on the right to insert dynamic values.</p>
+						<div class="ck-field">
+							<textarea id="resend_email_template" name="resend_email_template" rows="20" class="ck-code-textarea"><?php echo esc_textarea( $template ); ?></textarea>
+						</div>
+					</div>
+				</div>
+
+				<div class="ck-settings-side">
+					<div class="ck-card">
+						<h2 class="ck-card__title"><i class="bi bi-braces"></i> Placeholders</h2>
+						<p class="ck-card__desc">Click to copy to clipboard.</p>
+						<div class="ck-placeholder-list">
+							<?php foreach ( $placeholders as $tag => $desc ) : ?>
+							<div class="ck-placeholder-item" onclick="navigator.clipboard.writeText('<?php echo esc_js( $tag ); ?>')" title="Click to copy">
+								<code><?php echo esc_html( $tag ); ?></code>
+								<span><?php echo esc_html( $desc ); ?></span>
+							</div>
+							<?php endforeach; ?>
+						</div>
+					</div>
+					<div class="ck-card">
+						<button type="submit" class="ck-btn ck-btn-primary ck-btn-full">
+							<i class="bi bi-check-lg"></i> Save resend settings
 						</button>
 					</div>
 				</div>
@@ -1337,6 +1408,17 @@ class Admin {
 		exit;
 	}
 
+	public static function handle_save_resend_email(): void {
+		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
+		if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_save_resend_email' ) ) wp_die( 'Security check failed' );
+
+		Email::save_resend_subject( sanitize_text_field( $_POST['resend_email_subject'] ?? '' ) );
+		Email::save_resend_template( $_POST['resend_email_template'] ?? '' );
+
+		wp_safe_redirect( admin_url( 'admin.php?page=checkee-settings&tab=resend&ck_msg=saved' ) );
+		exit;
+	}
+
 	public static function ajax_test_ac(): void {
 		try {
 			if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_test_ac' ) ) {
@@ -1385,7 +1467,7 @@ class Admin {
 
 			$sent = 0;
 			foreach ( $attendees as $a ) {
-				if ( Email::send_confirmation( $a, $mapping ) ) {
+				if ( Email::send_resend( $a, $mapping ) ) {
 					$sent++;
 				}
 			}
