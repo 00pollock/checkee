@@ -263,6 +263,44 @@ class StaffPortal {
 		}
 	}
 
+	public static function ajax_scan_checkin(): void {
+		try {
+			$mapping = self::authorize_request();
+			if ( ! $mapping ) {
+				wp_send_json_error( [ 'message' => 'Session expired. Refresh the page and re-enter the PIN.' ] );
+				return;
+			}
+			$mapping_id = (int) $mapping['id'];
+			$token      = sanitize_text_field( wp_unslash( $_POST['token'] ?? '' ) );
+			if ( '' === $token ) {
+				wp_send_json_error( [ 'message' => 'No QR code detected.' ] );
+				return;
+			}
+
+			$attendee = Attendees::find_by_token( $token );
+			if ( ! $attendee || (int) $attendee['event_mapping_id'] !== $mapping_id ) {
+				wp_send_json_error( [ 'message' => 'QR code not recognised for this event.' ] );
+				return;
+			}
+
+			$already = 'checked_in' === $attendee['status'];
+			if ( ! $already ) {
+				Checkin::process( $attendee['qr_token'], 'in' );
+				$attendee = Attendees::find_by_id( (int) $attendee['id'] );
+			}
+
+			wp_send_json_success( [
+				'attendee_id' => (int) $attendee['id'],
+				'name'        => Attendees::full_name( $attendee ),
+				'already'     => $already,
+				'row'         => Admin::render_attendee_row( $attendee, $mapping_id, false ),
+				'stats'       => Attendees::status_counts( $mapping_id ),
+			] );
+		} catch ( \Throwable $e ) {
+			wp_send_json_error( [ 'message' => 'Error: ' . $e->getMessage() ] );
+		}
+	}
+
 	// -------------------------------------------------------------------------
 	// Rendering — raw HTML documents, no WP theme/admin chrome at all.
 	// -------------------------------------------------------------------------
@@ -293,6 +331,31 @@ class StaffPortal {
 			}
 			body.checkee-staff-portal .ck-status-filter-option:hover,
 			body.checkee-staff-portal .ck-status-filter-option.is-active{background:#f3f4f6;}
+			body.checkee-staff-portal .ck-scan-toggle-btn{
+				width:38px;height:38px;padding:0;justify-content:center;flex-shrink:0;
+			}
+			body.checkee-staff-portal .ck-scan-overlay{
+				position:fixed;inset:0;z-index:1000;background:#000;
+			}
+			body.checkee-staff-portal .ck-scan-overlay[hidden]{display:none;}
+			body.checkee-staff-portal .ck-scan-video{
+				position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
+			}
+			body.checkee-staff-portal .ck-scan-frame{
+				position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+				width:min(70vw,280px);height:min(70vw,280px);
+				border:3px solid #fff;border-radius:16px;box-shadow:0 0 0 2000px rgba(0,0,0,.45);
+				pointer-events:none;
+			}
+			body.checkee-staff-portal .ck-scan-status{
+				position:absolute;bottom:100px;left:0;right:0;text-align:center;
+				color:#fff;font-size:15px;font-weight:600;padding:0 24px;
+			}
+			body.checkee-staff-portal .ck-scan-status.is-success{color:#4ade80;}
+			body.checkee-staff-portal .ck-scan-status.is-error{color:#f87171;}
+			body.checkee-staff-portal .ck-scan-close{
+				position:absolute;top:16px;right:16px;z-index:2;color:#fff;
+			}
 			@media (max-width:900px){
 				body.checkee-staff-portal .ck-wrap{padding-top:6px;}
 				body.checkee-staff-portal .ck-stats-row{margin-bottom:10px;}
@@ -392,9 +455,18 @@ class StaffPortal {
 					<h1><?php echo esc_html( $mapping['event_name'] ); ?></h1>
 				</div>
 				<div class="ck-action-group">
+					<button type="button" id="ck-scan-toggle" class="ck-btn ck-btn-outline ck-scan-toggle-btn" aria-label="Scan QR code" title="Scan QR code"><i class="bi bi-camera-fill"></i></button>
 					<button type="button" id="ck-walkin-toggle" class="ck-btn ck-btn-primary">Add walk-in</button>
 				</div>
 			</div>
+
+			<div class="ck-scan-overlay" id="ck-scan-overlay" hidden>
+				<button type="button" id="ck-scan-close" class="ck-btn ck-btn-ghost ck-scan-close">Close</button>
+				<video id="ck-scan-video" class="ck-scan-video" playsinline autoplay muted></video>
+				<div class="ck-scan-frame"></div>
+				<div class="ck-scan-status" id="ck-scan-status">Point the camera at an attendee's QR code</div>
+			</div>
+			<canvas id="ck-scan-canvas" hidden></canvas>
 
 			<div class="ck-card" id="ck-walkin-form-card" hidden>
 				<h2 class="ck-card__title">Register + Check In</h2>
@@ -510,6 +582,7 @@ class StaffPortal {
 			<?php endif; // 0 === total ?>
 		</div>
 
+		<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 		<script>
 		(function(){
 			var ajaxUrl = <?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>;
@@ -526,6 +599,10 @@ class StaffPortal {
 			var pager  = document.getElementById('ck-pagination');
 			var currentStatus = '';
 			var STATUS_LABELS = { '': 'All Statuses', registered: 'Registered', checked_in: 'Checked In', checked_out: 'Checked Out' };
+
+			var originalRows  = tbody ? tbody.innerHTML : '';
+			var originalMeta  = meta ? meta.innerHTML : '';
+			var originalPager = pager ? pager.outerHTML : '';
 
 			if (statusBtn && statusMenu) {
 				statusBtn.addEventListener('click', function(e){
@@ -618,13 +695,20 @@ class StaffPortal {
 				return parts.length ? ' ' + parts.join(' ') : '';
 			}
 
+			function restore() {
+				tbody.innerHTML = originalRows;
+				meta.innerHTML  = originalMeta;
+				if (pager) { pager.outerHTML = originalPager; pager = document.getElementById('ck-pagination'); }
+				clear.hidden = true;
+			}
+
 			function runFilter() {
 				if (!input || !tbody) return;
 				var term = input.value.trim();
 				clear.hidden = ! isFiltering();
 
 				if (! isFiltering()) {
-					window.location.href = <?php echo wp_json_encode( $page_base ); ?>;
+					restore();
 					return;
 				}
 
@@ -666,7 +750,7 @@ class StaffPortal {
 					statusMenu.querySelectorAll('.ck-status-filter-option').forEach(function(o){
 						o.classList.toggle('is-active', o.getAttribute('data-value') === '');
 					});
-					window.location.href = <?php echo wp_json_encode( $page_base ); ?>;
+					restore();
 				});
 			}
 
@@ -727,6 +811,113 @@ class StaffPortal {
 						walkinResult.textContent = 'Request failed. Check your connection and try again.';
 					});
 				});
+			}
+
+			var scanToggle = document.getElementById('ck-scan-toggle');
+			var scanOverlay = document.getElementById('ck-scan-overlay');
+			var scanVideo   = document.getElementById('ck-scan-video');
+			var scanCanvas  = document.getElementById('ck-scan-canvas');
+			var scanStatus  = document.getElementById('ck-scan-status');
+			var scanClose   = document.getElementById('ck-scan-close');
+			var scanStream  = null;
+			var scanRAF     = null;
+			var scanLastText = null;
+			var scanCooldownUntil = 0;
+
+			function setScanStatus(text, cls) {
+				scanStatus.textContent = text;
+				scanStatus.className = 'ck-scan-status' + (cls ? ' ' + cls : '');
+			}
+
+			function extractToken(text) {
+				try {
+					return new URL(text).searchParams.get('token');
+				} catch (e) {
+					var m = text.match(/[?&]token=([^&]+)/);
+					return m ? decodeURIComponent(m[1]) : null;
+				}
+			}
+
+			function stopScan() {
+				if (scanRAF) cancelAnimationFrame(scanRAF);
+				scanRAF = null;
+				if (scanStream) {
+					scanStream.getTracks().forEach(function(t){ t.stop(); });
+					scanStream = null;
+				}
+				scanVideo.srcObject = null;
+				if (scanOverlay) scanOverlay.hidden = true;
+			}
+
+			function handleScan(rawText) {
+				var token = extractToken(rawText);
+				if (!token) return;
+				scanLastText = rawText;
+				scanCooldownUntil = Date.now() + 2500;
+				setScanStatus('Checking in…');
+
+				fetch(ajaxUrl, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+					body: 'action=checkee_staff_scan_checkin'
+						+ '&slug=' + encodeURIComponent(slug)
+						+ '&token=' + encodeURIComponent(token)
+						+ '&_wpnonce=' + encodeURIComponent(nonce)
+				})
+				.then(function(r){ return r.json(); })
+				.then(function(data){
+					if (!data.success) {
+						setScanStatus((data.data && data.data.message) ? data.data.message : 'Check-in failed.', 'is-error');
+						return;
+					}
+					var label = data.data.already ? 'Already checked in: ' : '✓ Checked in: ';
+					setScanStatus(label + data.data.name, 'is-success');
+					if (tbody) replaceRow(tbody, data.data.attendee_id, data.data.row);
+					updateStatCards(data.data.stats);
+					if (scanRAF) { cancelAnimationFrame(scanRAF); scanRAF = null; } // freeze frame while confirmation shows
+					setTimeout(stopScan, 1200);
+				})
+				.catch(function(){
+					setScanStatus('Request failed. Check your connection.', 'is-error');
+				});
+			}
+
+			function scanLoop() {
+				if (!scanStream) return;
+				if (scanVideo.readyState === scanVideo.HAVE_ENOUGH_DATA && typeof jsQR === 'function') {
+					scanCanvas.width  = scanVideo.videoWidth;
+					scanCanvas.height = scanVideo.videoHeight;
+					var ctx = scanCanvas.getContext('2d');
+					ctx.drawImage(scanVideo, 0, 0, scanCanvas.width, scanCanvas.height);
+					var imageData = ctx.getImageData(0, 0, scanCanvas.width, scanCanvas.height);
+					var code = jsQR(imageData.data, imageData.width, imageData.height);
+					if (code && code.data && (Date.now() >= scanCooldownUntil || code.data !== scanLastText)) {
+						handleScan(code.data);
+					}
+				}
+				scanRAF = requestAnimationFrame(scanLoop);
+			}
+
+			if (scanToggle && scanOverlay && scanVideo) {
+				scanToggle.addEventListener('click', function(){
+					scanOverlay.hidden = false;
+					scanLastText = null;
+					scanCooldownUntil = 0;
+					setScanStatus("Point the camera at an attendee's QR code");
+					navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+						.then(function(stream){
+							scanStream = stream;
+							scanVideo.srcObject = stream;
+							scanVideo.play();
+							scanRAF = requestAnimationFrame(scanLoop);
+						})
+						.catch(function(){
+							setScanStatus('Camera access denied. Check your browser permissions.', 'is-error');
+						});
+				});
+			}
+			if (scanClose) {
+				scanClose.addEventListener('click', stopScan);
 			}
 		})();
 		</script>

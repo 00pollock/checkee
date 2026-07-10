@@ -283,18 +283,21 @@ class Admin {
 								<label for="staff_pin">PIN</label>
 								<input type="text" id="staff_pin" readonly value="<?php echo esc_html( $mapping['staff_pin'] ); ?>" onclick="this.select()">
 							</div>
-							<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" onsubmit="return confirm('Regenerate the link and PIN? The old ones will stop working immediately.');">
-								<?php wp_nonce_field( 'checkee_regenerate_staff_' . $id, '_wpnonce' ); ?>
-								<input type="hidden" name="action" value="checkee_regenerate_staff">
-								<input type="hidden" name="event_id" value="<?php echo (int) $id; ?>">
-								<button type="submit" class="ck-btn ck-btn-outline ck-btn-full">Regenerate link &amp; PIN</button>
-							</form>
+							<button type="button" class="ck-btn ck-btn-outline ck-btn-full" onclick="if(confirm('Regenerate the link and PIN? The old ones will stop working immediately.')){document.getElementById('ck-regenerate-staff-form').submit();}">Regenerate link &amp; PIN</button>
 						</div>
 						<?php endif; ?>
 					</div>
 
 				</div><!-- .ck-form-grid -->
 			</form>
+
+			<?php if ( $is_edit ) : ?>
+			<form id="ck-regenerate-staff-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:none;">
+				<?php wp_nonce_field( 'checkee_regenerate_staff_' . $id, '_wpnonce' ); ?>
+				<input type="hidden" name="action" value="checkee_regenerate_staff">
+				<input type="hidden" name="event_id" value="<?php echo (int) $id; ?>">
+			</form>
+			<?php endif; ?>
 		</div>
 
 		<script>
@@ -1167,7 +1170,7 @@ class Admin {
 		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
 		if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_create_event' ) ) wp_die( 'Security check failed' );
 
-		$form_id = sanitize_text_field( $_POST['form_id'] ?? '' );
+		$form_id = sanitize_text_field( wp_unslash( $_POST['form_id'] ?? '' ) );
 		// Fetch the form title from Kadence CPT if available
 		$form_title = '';
 		if ( is_numeric( $form_id ) ) {
@@ -1176,15 +1179,15 @@ class Admin {
 		}
 
 		Mappings::create( [
-			'event_name'          => $_POST['event_name'] ?? '',
+			'event_name'          => wp_unslash( $_POST['event_name'] ?? '' ),
 			'form_id'             => $form_id,
 			'form_title'          => $form_title,
-			'email_field'         => $_POST['email_field'] ?? 'Email',
-			'first_name_field'    => $_POST['first_name_field'] ?? 'First Name',
-			'last_name_field'     => $_POST['last_name_field'] ?? 'Last Name',
-			'ac_registration_tag' => $_POST['ac_registration_tag'] ?? '',
-			'ac_checkin_tag'      => $_POST['ac_checkin_tag'] ?? '',
-			'ac_checkout_tag'     => $_POST['ac_checkout_tag'] ?? '',
+			'email_field'         => wp_unslash( $_POST['email_field'] ?? 'Email' ),
+			'first_name_field'    => wp_unslash( $_POST['first_name_field'] ?? 'First Name' ),
+			'last_name_field'     => wp_unslash( $_POST['last_name_field'] ?? 'Last Name' ),
+			'ac_registration_tag' => wp_unslash( $_POST['ac_registration_tag'] ?? '' ),
+			'ac_checkin_tag'      => wp_unslash( $_POST['ac_checkin_tag'] ?? '' ),
+			'ac_checkout_tag'     => wp_unslash( $_POST['ac_checkout_tag'] ?? '' ),
 			'status'              => 'active',
 		] );
 
@@ -1197,7 +1200,7 @@ class Admin {
 		$id = (int) ( $_POST['event_id'] ?? 0 );
 		if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_update_event_' . $id ) ) wp_die( 'Security check failed' );
 
-		$form_id    = sanitize_text_field( $_POST['form_id'] ?? '' );
+		$form_id    = sanitize_text_field( wp_unslash( $_POST['form_id'] ?? '' ) );
 		$form_title = '';
 		if ( is_numeric( $form_id ) ) {
 			$post = get_post( (int) $form_id );
@@ -1205,16 +1208,16 @@ class Admin {
 		}
 
 		Mappings::update( $id, [
-			'event_name'          => $_POST['event_name'] ?? '',
+			'event_name'          => wp_unslash( $_POST['event_name'] ?? '' ),
 			'form_id'             => $form_id,
 			'form_title'          => $form_title,
-			'email_field'         => $_POST['email_field'] ?? 'Email',
-			'first_name_field'    => $_POST['first_name_field'] ?? 'First Name',
-			'last_name_field'     => $_POST['last_name_field'] ?? 'Last Name',
-			'ac_registration_tag' => $_POST['ac_registration_tag'] ?? '',
-			'ac_checkin_tag'      => $_POST['ac_checkin_tag'] ?? '',
-			'ac_checkout_tag'     => $_POST['ac_checkout_tag'] ?? '',
-			'status'              => $_POST['status'] ?? 'active',
+			'email_field'         => wp_unslash( $_POST['email_field'] ?? 'Email' ),
+			'first_name_field'    => wp_unslash( $_POST['first_name_field'] ?? 'First Name' ),
+			'last_name_field'     => wp_unslash( $_POST['last_name_field'] ?? 'Last Name' ),
+			'ac_registration_tag' => wp_unslash( $_POST['ac_registration_tag'] ?? '' ),
+			'ac_checkin_tag'      => wp_unslash( $_POST['ac_checkin_tag'] ?? '' ),
+			'ac_checkout_tag'     => wp_unslash( $_POST['ac_checkout_tag'] ?? '' ),
+			'status'              => sanitize_key( $_POST['status'] ?? 'active' ),
 		] );
 
 		wp_safe_redirect( admin_url( 'admin.php?page=checkee&ck_msg=saved' ) );
@@ -1388,8 +1391,8 @@ class Admin {
 		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
 		if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_save_settings' ) ) wp_die( 'Security check failed' );
 
-		update_option( 'checkee_ac_url', sanitize_text_field( $_POST['checkee_ac_url'] ?? '' ) );
-		update_option( 'checkee_ac_key', sanitize_text_field( $_POST['checkee_ac_key'] ?? '' ) );
+		update_option( 'checkee_ac_url', sanitize_text_field( wp_unslash( $_POST['checkee_ac_url'] ?? '' ) ) );
+		update_option( 'checkee_ac_key', sanitize_text_field( wp_unslash( $_POST['checkee_ac_key'] ?? '' ) ) );
 
 		wp_safe_redirect( admin_url( 'admin.php?page=checkee-settings&tab=integrations&ck_msg=saved' ) );
 		exit;
@@ -1399,10 +1402,10 @@ class Admin {
 		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
 		if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_save_email' ) ) wp_die( 'Security check failed' );
 
-		Email::save_subject( sanitize_text_field( $_POST['email_subject'] ?? '' ) );
-		Email::save_template( $_POST['email_template'] ?? '' );
-		update_option( 'checkee_email_from_name',  sanitize_text_field( $_POST['from_name']  ?? '' ) );
-		update_option( 'checkee_email_from_email', sanitize_email( $_POST['from_email'] ?? '' ) );
+		Email::save_subject( sanitize_text_field( wp_unslash( $_POST['email_subject'] ?? '' ) ) );
+		Email::save_template( wp_unslash( $_POST['email_template'] ?? '' ) );
+		update_option( 'checkee_email_from_name',  sanitize_text_field( wp_unslash( $_POST['from_name']  ?? '' ) ) );
+		update_option( 'checkee_email_from_email', sanitize_email( wp_unslash( $_POST['from_email'] ?? '' ) ) );
 
 		wp_safe_redirect( admin_url( 'admin.php?page=checkee-settings&tab=email&ck_msg=saved' ) );
 		exit;
@@ -1412,8 +1415,8 @@ class Admin {
 		if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Unauthorized' );
 		if ( ! wp_verify_nonce( sanitize_key( $_POST['_wpnonce'] ?? '' ), 'checkee_save_resend_email' ) ) wp_die( 'Security check failed' );
 
-		Email::save_resend_subject( sanitize_text_field( $_POST['resend_email_subject'] ?? '' ) );
-		Email::save_resend_template( $_POST['resend_email_template'] ?? '' );
+		Email::save_resend_subject( sanitize_text_field( wp_unslash( $_POST['resend_email_subject'] ?? '' ) ) );
+		Email::save_resend_template( wp_unslash( $_POST['resend_email_template'] ?? '' ) );
 
 		wp_safe_redirect( admin_url( 'admin.php?page=checkee-settings&tab=resend&ck_msg=saved' ) );
 		exit;
